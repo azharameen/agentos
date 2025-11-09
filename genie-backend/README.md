@@ -99,7 +99,7 @@ npm run build
 npm run start:prod
 ```
 
-**API Docs**: <http://localhost:3000/api> (Swagger UI)
+**API Docs**: <http://localhost:3001/api> (Swagger UI)
 
 ---
 
@@ -108,7 +108,7 @@ npm run start:prod
 ### Execute Agentic Task
 
 ```bash
-curl -X POST http://localhost:3000/agent/execute \
+curl -X POST http://localhost:3001/agent/execute \
   -H "Content-Type: application/json" \
   -d '{
     "prompt": "Calculate 25 * 4 and tell me the date 10 days from now",
@@ -120,7 +120,7 @@ curl -X POST http://localhost:3000/agent/execute \
 ### Add RAG Documents
 
 ```bash
-curl -X POST http://localhost:3000/agent/rag/documents \
+curl -X POST http://localhost:3001/agent/rag/documents \
   -H "Content-Type: application/json" \
   -d '{
     "documents": [
@@ -133,7 +133,7 @@ curl -X POST http://localhost:3000/agent/rag/documents \
 ### Query with RAG Context
 
 ```bash
-curl -X POST http://localhost:3000/agent/rag/query \
+curl -X POST http://localhost:3001/agent/rag/query \
   -H "Content-Type: application/json" \
   -d '{
     "query": "What is LangChain?",
@@ -201,7 +201,7 @@ RUN npm ci --only=production
 COPY . .
 RUN npm run build
 ENV NODE_ENV=production
-EXPOSE 3000
+EXPOSE 3001
 CMD ["node", "dist/main"]
 ```
 
@@ -209,7 +209,7 @@ Build and run:
 
 ```bash
 docker build -t genie-backend .
-docker run -p 3000:3000 --env-file .env genie-backend
+docker run -p 3001:3001 --env-file .env genie-backend
 ```
 
 ### Environment Variables for Production
