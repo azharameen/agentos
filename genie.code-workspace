@@ -1,0 +1,14 @@
+{
+	"folders": [
+		{
+			"path": "genie-backend"
+		},
+		{
+			"path": "genie-frontend"
+		},
+		{
+			"path": "documentation"
+		}
+	],
+	"settings": {}
+}
