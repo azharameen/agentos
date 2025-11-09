@@ -1,4 +1,4 @@
-import { ModelType } from './agent-models.enum';
+import { ModelType } from "./agent-models.enum";
 
 export interface ModelConfig {
   name: string;

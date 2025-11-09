@@ -1,32 +1,63 @@
-import { NestFactory } from '@nestjs/core';
-import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import { ConsoleLogger } from '@nestjs/common';
-import compression from 'compression';
-import helmet from 'helmet';
-import { AppModule } from './app.module';
+import { NestFactory } from "@nestjs/core";
+import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
+import { ConsoleLogger, ValidationPipe } from "@nestjs/common";
+import compression from "compression";
+import helmet from "helmet";
+import { Request, Response } from "express";
+import { AppModule } from "./app.module";
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule, {
     logger: new ConsoleLogger({
-      prefix: 'Genie',
-      logLevels: ['error', 'warn', 'log'],
+      prefix: "Genie",
+      logLevels: ["error", "warn", "log"],
     }),
   });
 
-  app.enableCors();
+  // Enable CORS (environment-based configuration)
+  const corsOrigins = process.env.CORS_ORIGINS?.split(",") || "*";
+  app.enableCors({
+    origin: corsOrigins,
+    credentials: true,
+  });
+
+  // Enable global validation
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true,
+      forbidNonWhitelisted: true,
+      transform: true,
+      transformOptions: {
+        enableImplicitConversion: true,
+      },
+    }),
+  );
+
   app.use(compression());
   app.use(helmet());
 
   const config = new DocumentBuilder()
-    .setTitle('Genie')
-    .setDescription('An Agentic AI')
-    .setVersion('1.0')
-    .addTag('agent')
+    .setTitle("Genie")
+    .setDescription("An Agentic AI")
+    .setVersion("1.0")
+    .addTag("agent")
     .build();
-  const documentFactory = () => SwaggerModule.createDocument(app, config);
-  SwaggerModule.setup('api', app, documentFactory);
+  const documentFactory = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup("api", app, documentFactory);
+  app.use("/api/swagger.json", (req: Request, res: Response) =>
+    res.json(documentFactory),
+  );
 
   await app.listen(process.env.PORT ?? 3001);
+  console.log(
+    `🚀 Genie Backend is running on http://localhost:${process.env.PORT ?? 3001}`,
+  );
+  console.log(
+    `📚 API Documentation available at http://localhost:${process.env.PORT ?? 3001}/api`,
+  );
 }
 
-bootstrap();
+void bootstrap().catch((error) => {
+  console.error("❌ Failed to start Genie Backend:", error);
+  process.exit(1);
+});

@@ -1,28 +1,37 @@
-import { ApiProperty } from "@nestjs/swagger";
-import { IsString, IsIn } from "class-validator";
+import { ApiProperty, ApiPropertyOptional } from "@nestjs/swagger";
+import { IsString, IsIn, IsOptional, IsNotEmpty } from "class-validator";
 import { AGENT_MODELS } from "../shared/agent-models.constants";
 
+/**
+ * DTO for legacy agent query endpoint
+ * @deprecated Use AgenticTaskDto with /agent/execute instead
+ */
 export class AgentQueryDto {
-  @ApiProperty({
-    example: "session-123",
-    required: false,
-    description: "Session identifier (optional)",
+  @ApiPropertyOptional({
+    description:
+      "Session identifier for maintaining conversation context across multiple requests",
+    example: "session-123-abc-def",
   })
+  @IsOptional()
   @IsString()
   sessionId?: string;
+
   @ApiProperty({
+    description: "The user prompt or query to send to the AI agent",
     example: "What is the capital of France?",
-    description: "Prompt to send to the AI agent",
   })
   @IsString()
+  @IsNotEmpty()
   prompt: string;
 
   @ApiProperty({
-    example: AGENT_MODELS[0].name,
+    description: "AI model to use for generating the response",
+    example: AGENT_MODELS[0]?.name || "gpt-4",
     enum: AGENT_MODELS.map((m) => m.name),
-    description: "Model to use for the AI agent",
   })
   @IsString()
-  @IsIn(AGENT_MODELS.map((m) => m.name))
+  @IsIn(AGENT_MODELS.map((m) => m.name), {
+    message: `model must be one of: ${AGENT_MODELS.map((m) => m.name).join(", ")}`,
+  })
   model: string;
 }

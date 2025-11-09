@@ -1,5 +1,4 @@
-import { BaseMessage } from '@langchain/core/messages';
-import { z } from 'zod';
+import { BaseMessage } from "@langchain/core/messages";
 
 export interface SessionMemory {
   sessionId: string;
@@ -33,12 +32,4 @@ export interface AgentExecutionOptions {
   specificTools?: string[];
   useGraph?: boolean; // Use LangGraph workflow instead of LangChain agent
   enableRAG?: boolean; // Enable RAG context retrieval
-}
-
-export interface ToolMetadata {
-  name: string;
-  description: string;
-  schema: z.ZodObject<any>;
-  category?: string;
-  enabled: boolean;
 }

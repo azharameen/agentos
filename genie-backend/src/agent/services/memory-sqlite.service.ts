@@ -2,7 +2,12 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import Database from "better-sqlite3";
 import * as path from "node:path";
 import * as fs from "node:fs";
-import { BaseMessage, HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
+import {
+  BaseMessage,
+  HumanMessage,
+  AIMessage,
+  SystemMessage,
+} from "@langchain/core/messages";
 
 /**
  * Memory SQLite Service
@@ -56,7 +61,9 @@ export class MemorySqliteService implements OnModuleInit {
       this.isInitialized = true;
       this.logger.log("Memory SQLite service initialized successfully");
     } catch (error: any) {
-      this.logger.error(`Failed to initialize memory database: ${error.message}`);
+      this.logger.error(
+        `Failed to initialize memory database: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -142,7 +149,7 @@ export class MemorySqliteService implements OnModuleInit {
     sessionId: string,
     role: "system" | "human" | "ai",
     content: string,
-    metadata: any = {}
+    metadata: any = {},
   ): Promise<number> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -159,7 +166,7 @@ export class MemorySqliteService implements OnModuleInit {
       const result = stmt.run(sessionId, role, content, metadataJson);
 
       this.logger.debug(
-        `Added ${role} message for session ${sessionId} (ID: ${result.lastInsertRowid})`
+        `Added ${role} message for session ${sessionId} (ID: ${result.lastInsertRowid})`,
       );
 
       return Number(result.lastInsertRowid);
@@ -174,7 +181,7 @@ export class MemorySqliteService implements OnModuleInit {
    */
   async getRecentMessages(
     sessionId: string,
-    limit: number = 10
+    limit: number = 10,
   ): Promise<BaseMessage[]> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -220,7 +227,7 @@ export class MemorySqliteService implements OnModuleInit {
   async getAllMessages(
     sessionId: string,
     offset: number = 0,
-    limit: number = 50
+    limit: number = 50,
   ): Promise<{ messages: BaseMessage[]; total: number }> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -286,7 +293,7 @@ export class MemorySqliteService implements OnModuleInit {
       const result = stmt.run(sessionId);
 
       this.logger.log(
-        `Cleared ${result.changes} messages for session ${sessionId}`
+        `Cleared ${result.changes} messages for session ${sessionId}`,
       );
 
       return result.changes;
@@ -307,7 +314,7 @@ export class MemorySqliteService implements OnModuleInit {
       category?: string;
       importance?: number;
       metadata?: any;
-    } = {}
+    } = {},
   ): Promise<void> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -328,11 +335,11 @@ export class MemorySqliteService implements OnModuleInit {
         value,
         options.category || "general",
         options.importance || 0.5,
-        metadataJson
+        metadataJson,
       );
 
       this.logger.debug(
-        `Stored long-term memory: ${key} (session: ${sessionId || "global"})`
+        `Stored long-term memory: ${key} (session: ${sessionId || "global"})`,
       );
     } catch (error: any) {
       this.logger.error(`Failed to set long-term memory: ${error.message}`);
@@ -345,7 +352,7 @@ export class MemorySqliteService implements OnModuleInit {
    */
   async getLongTermMemory(
     key: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<string | null> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -383,12 +390,14 @@ export class MemorySqliteService implements OnModuleInit {
 
       // Update access tracking
       this.db
-        .prepare(`
+        .prepare(
+          `
           UPDATE long_term_memory
           SET access_count = access_count + 1,
               last_accessed_at = CURRENT_TIMESTAMP
           WHERE id = ?
-        `)
+        `,
+        )
         .run(row.id);
 
       return row.value;
@@ -403,7 +412,7 @@ export class MemorySqliteService implements OnModuleInit {
    */
   async searchLongTermMemory(
     category: string,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<Array<{ key: string; value: string; importance: number }>> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -447,7 +456,7 @@ export class MemorySqliteService implements OnModuleInit {
     summary: string,
     messageCount: number,
     startMessageId?: number,
-    endMessageId?: number
+    endMessageId?: number,
   ): Promise<void> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -463,7 +472,7 @@ export class MemorySqliteService implements OnModuleInit {
       stmt.run(sessionId, summary, messageCount, startMessageId, endMessageId);
 
       this.logger.debug(
-        `Saved summary for session ${sessionId} (${messageCount} messages)`
+        `Saved summary for session ${sessionId} (${messageCount} messages)`,
       );
     } catch (error: any) {
       this.logger.error(`Failed to save summary: ${error.message}`);
@@ -517,19 +526,19 @@ export class MemorySqliteService implements OnModuleInit {
       if (sessionId) {
         messagesCount = this.db
           .prepare(
-            "SELECT COUNT(*) as count FROM conversation_messages WHERE session_id = ?"
+            "SELECT COUNT(*) as count FROM conversation_messages WHERE session_id = ?",
           )
           .get(sessionId);
 
         longTermCount = this.db
           .prepare(
-            "SELECT COUNT(*) as count FROM long_term_memory WHERE session_id = ?"
+            "SELECT COUNT(*) as count FROM long_term_memory WHERE session_id = ?",
           )
           .get(sessionId);
 
         summariesCount = this.db
           .prepare(
-            "SELECT COUNT(*) as count FROM memory_summaries WHERE session_id = ?"
+            "SELECT COUNT(*) as count FROM memory_summaries WHERE session_id = ?",
           )
           .get(sessionId);
       } else {
@@ -549,7 +558,7 @@ export class MemorySqliteService implements OnModuleInit {
       return {
         totalMessages: messagesCount?.count || 0,
         totalLongTermMemories: longTermCount?.count || 0,
-        totalSummaries: summariesCount?.count || 0
+        totalSummaries: summariesCount?.count || 0,
       };
     } catch (error: any) {
       this.logger.error(`Failed to get stats: ${error.message}`);

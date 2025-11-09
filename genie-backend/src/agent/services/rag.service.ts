@@ -19,7 +19,7 @@ interface VectorStoreEntry {
 /**
  * RAG (Retrieval-Augmented Generation) Service
  * Manages embeddings, vector store, and retrieval for context-aware AI responses
- * 
+ *
  * Features:
  * - Embedding generation using Azure OpenAI (text-embedding-3-small-2-agentos)
  * - In-memory vector store (easily replaceable with SQLite/PostgreSQL)
@@ -38,10 +38,13 @@ export class RagService {
   constructor(@Optional() sqliteService?: SqliteVectorstoreService) {
     this.initializeEmbeddings();
     // Feature flag: USE_SQLITE_VECTORSTORE
-    if ((process.env.USE_SQLITE_VECTORSTORE || '').toLowerCase() === 'true' && sqliteService) {
+    if (
+      (process.env.USE_SQLITE_VECTORSTORE || "").toLowerCase() === "true" &&
+      sqliteService
+    ) {
       this.useSqlite = true;
       this.sqliteService = sqliteService;
-      this.logger.log('RAG service configured to use SQLite vectorstore');
+      this.logger.log("RAG service configured to use SQLite vectorstore");
     }
   }
 
@@ -53,19 +56,21 @@ export class RagService {
     const apiKey = process.env.AZURE_OPENAI_API_KEY;
 
     if (!endpoint || !apiKey) {
-      this.logger.error('Azure OpenAI credentials not configured for RAG service');
-      throw new Error('Azure OpenAI credentials required for RAG');
+      this.logger.error(
+        "Azure OpenAI credentials not configured for RAG service",
+      );
+      throw new Error("Azure OpenAI credentials required for RAG");
     }
 
     try {
       this.embeddings = new AzureOpenAIEmbeddings({
         azureOpenAIApiKey: apiKey,
         azureOpenAIApiInstanceName: this.extractInstanceName(endpoint),
-        azureOpenAIApiDeploymentName: 'text-embedding-3-small-2-agentos',
-        azureOpenAIApiVersion: '2024-02-01',
+        azureOpenAIApiDeploymentName: "text-embedding-3-small-2-agentos",
+        azureOpenAIApiVersion: "2024-02-01",
       });
 
-      this.logger.log('RAG service initialized with Azure OpenAI embeddings');
+      this.logger.log("RAG service initialized with Azure OpenAI embeddings");
     } catch (error: any) {
       this.logger.error(`Failed to initialize embeddings: ${error.message}`);
       throw error;
@@ -86,7 +91,11 @@ export class RagService {
       const embeddings = await this.generateEmbeddings(texts);
 
       if (this.useSqlite && this.sqliteService) {
-        const sqliteIds = this.sqliteService.addDocuments(texts, embeddings, metadata);
+        const sqliteIds = this.sqliteService.addDocuments(
+          texts,
+          embeddings,
+          metadata,
+        );
         // Mirror into documents map
         sqliteIds.forEach((id, i) => {
           const entry: LongTermMemoryEntry = {
@@ -131,7 +140,9 @@ export class RagService {
         this.logger.debug(`Added document: ${id}`);
       }
 
-      this.logger.log(`Added ${texts.length} documents to in-memory vector store`);
+      this.logger.log(
+        `Added ${texts.length} documents to in-memory vector store`,
+      );
       return ids;
     } catch (error: any) {
       this.logger.error(`Failed to add documents: ${error.message}`);
@@ -142,32 +153,36 @@ export class RagService {
   /**
    * Search for similar documents using cosine similarity
    */
-  async similaritySearch(
-    query: string,
-    k: number = 5,
-  ): Promise<Document[]> {
+  async similaritySearch(query: string, k: number = 5): Promise<Document[]> {
     try {
       // Generate query embedding
       const queryEmbedding = await this.embeddings.embedQuery(query);
       if (this.useSqlite && this.sqliteService) {
         const hits = this.sqliteService.similaritySearch(queryEmbedding, k);
-        return hits.map(h => new Document({ pageContent: h.content, metadata: h.metadata }));
+        return hits.map(
+          (h) => new Document({ pageContent: h.content, metadata: h.metadata }),
+        );
       }
 
       // Calculate cosine similarity for each document (in-memory fallback)
       const results = this.vectorStore
-        .map(entry => ({
+        .map((entry) => ({
           entry,
           score: this.cosineSimilarity(queryEmbedding, entry.embedding),
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, k)
-        .map(({ entry }) => new Document({
-          pageContent: entry.content,
-          metadata: entry.metadata,
-        }));
+        .map(
+          ({ entry }) =>
+            new Document({
+              pageContent: entry.content,
+              metadata: entry.metadata,
+            }),
+        );
 
-      this.logger.log(`Found ${results.length} similar documents for query: "${query.substring(0, 50)}..."`);
+      this.logger.log(
+        `Found ${results.length} similar documents for query: "${query.substring(0, 50)}..."`,
+      );
       return results;
     } catch (error: any) {
       this.logger.error(`Similarity search failed: ${error.message}`);
@@ -187,29 +202,40 @@ export class RagService {
       const queryEmbedding = await this.embeddings.embedQuery(query);
       if (this.useSqlite && this.sqliteService) {
         const hits = this.sqliteService.similaritySearch(queryEmbedding, k);
-        return hits.map(h => [new Document({ pageContent: h.content, metadata: h.metadata }), h.score] as [Document, number]);
+        return hits.map(
+          (h) =>
+            [
+              new Document({ pageContent: h.content, metadata: h.metadata }),
+              h.score,
+            ] as [Document, number],
+        );
       }
 
       // Calculate cosine similarity for each document
       const results = this.vectorStore
-        .map(entry => ({
+        .map((entry) => ({
           entry,
           score: this.cosineSimilarity(queryEmbedding, entry.embedding),
         }))
         .sort((a, b) => b.score - a.score)
         .slice(0, k)
-        .map(({ entry, score }) => [
-          new Document({
-            pageContent: entry.content,
-            metadata: entry.metadata,
-          }),
-          score,
-        ] as [Document, number]);
+        .map(
+          ({ entry, score }) =>
+            [
+              new Document({
+                pageContent: entry.content,
+                metadata: entry.metadata,
+              }),
+              score,
+            ] as [Document, number],
+        );
 
       this.logger.log(`Found ${results.length} documents with scores`);
       return results;
     } catch (error: any) {
-      this.logger.error(`Similarity search with score failed: ${error.message}`);
+      this.logger.error(
+        `Similarity search with score failed: ${error.message}`,
+      );
       throw error;
     }
   }
@@ -219,7 +245,7 @@ export class RagService {
    */
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
-      throw new Error('Vectors must have the same length');
+      throw new Error("Vectors must have the same length");
     }
 
     let dotProduct = 0;
@@ -275,7 +301,7 @@ export class RagService {
     if (this.useSqlite && this.sqliteService) {
       this.sqliteService.clearAll();
     }
-    this.logger.log('Cleared all documents and reset vector store');
+    this.logger.log("Cleared all documents and reset vector store");
   }
 
   /**
@@ -297,10 +323,12 @@ export class RagService {
   private extractInstanceName(endpoint: string): string {
     try {
       const url = new URL(endpoint);
-      return url.hostname.split('.')[0];
+      return url.hostname.split(".")[0];
     } catch {
-      this.logger.error(`Failed to extract instance name from endpoint: ${endpoint}`);
-      throw new Error('Invalid Azure OpenAI endpoint format');
+      this.logger.error(
+        `Failed to extract instance name from endpoint: ${endpoint}`,
+      );
+      throw new Error("Invalid Azure OpenAI endpoint format");
     }
   }
 

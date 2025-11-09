@@ -1,14 +1,18 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { z } from 'zod';
-import { SafeToolWrapper, ToolMetadata, SafeToolConfig } from '../tools/tool.interface';
-import { ToolCategory } from '../../shared/tool.constants';
+import { Injectable, Logger } from "@nestjs/common";
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import {
+  SafeToolWrapper,
+  ToolMetadata,
+  SafeToolConfig,
+} from "../tools/tool.interface";
+import { ToolCategory } from "../../shared/tool.constants";
 
 /**
  * ToolRegistryService
  * Manages registration, discovery, and invocation of agent tools
  * Following Single Responsibility Principle: Only manages tool lifecycle
- * 
+ *
  * Updated to use SafeToolWrapper for enhanced safety, validation, and error handling
  */
 @Injectable()
@@ -160,9 +164,11 @@ export class ToolRegistryService {
     const metadata = this.toolMetadata.get(name);
     if (metadata) {
       metadata.enabled = enabled;
-      this.logger.log(`Tool ${name} ${enabled ? 'enabled' : 'disabled'}`);
+      this.logger.log(`Tool ${name} ${enabled ? "enabled" : "disabled"}`);
     } else {
-      this.logger.warn(`Cannot set enabled state for non-existent tool: ${name}`);
+      this.logger.warn(
+        `Cannot set enabled state for non-existent tool: ${name}`,
+      );
     }
   }
 
@@ -194,12 +200,14 @@ export class ToolRegistryService {
     categories: string[];
   } {
     const metadata = Array.from(this.toolMetadata.values());
-    const categories = [...new Set(metadata.map(m => m.category || 'general'))];
+    const categories = [
+      ...new Set(metadata.map((m) => m.category || "general")),
+    ];
 
     return {
       totalTools: metadata.length,
-      enabledTools: metadata.filter(m => m.enabled).length,
-      disabledTools: metadata.filter(m => !m.enabled).length,
+      enabledTools: metadata.filter((m) => m.enabled).length,
+      disabledTools: metadata.filter((m) => !m.enabled).length,
       categories,
     };
   }
@@ -214,7 +222,9 @@ export class ToolRegistryService {
     }
 
     try {
-      this.logger.debug(`Invoking tool ${name} with input: ${JSON.stringify(input)}`);
+      this.logger.debug(
+        `Invoking tool ${name} with input: ${JSON.stringify(input)}`,
+      );
       const result = await tool.invoke(input);
       this.logger.debug(`Tool ${name} returned: ${result}`);
       return result;

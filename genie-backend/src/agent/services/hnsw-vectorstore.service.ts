@@ -1,19 +1,22 @@
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { SqliteVectorstoreService, SQLiteVectorDocument } from './sqlite-vectorstore.service';
-import { HierarchicalNSW } from 'hnswlib-node';
-import * as fs from 'fs';
-import * as path from 'path';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import {
+  SqliteVectorstoreService,
+  SQLiteVectorDocument,
+} from "./sqlite-vectorstore.service";
+import { HierarchicalNSW } from "hnswlib-node";
+import * as fs from "fs";
+import * as path from "path";
 
 /**
  * HNSW-Enhanced Vector Store Service
- * 
+ *
  * Wraps SqliteVectorstoreService with HNSW (Hierarchical Navigable Small World) index
  * for Approximate Nearest Neighbor (ANN) search.
- * 
+ *
  * Performance:
  * - Naive cosine similarity: O(n) where n = number of documents
  * - HNSW: O(log n) query time with high recall (>95%)
- * 
+ *
  * Use Cases:
  * - Large document collections (>10,000 docs)
  * - Real-time similarity search requirements
@@ -30,16 +33,16 @@ export class HnswVectorstoreService implements OnModuleInit {
   private docToIdMap: Map<string, number> = new Map(); // document ID -> HNSW numeric ID
   private nextHnswId = 0;
 
-  constructor(
-    private readonly sqliteVectorstore: SqliteVectorstoreService
-  ) {
+  constructor(private readonly sqliteVectorstore: SqliteVectorstoreService) {
     // Enable HNSW index via environment variable
-    this.enabled = process.env.ENABLE_HNSW_INDEX === 'true';
-    const dbDir = process.env.DB_DIR || './data';
-    this.indexPath = path.join(dbDir, 'hnsw_index.dat');
+    this.enabled = process.env.ENABLE_HNSW_INDEX === "true";
+    const dbDir = process.env.DB_DIR || "./data";
+    this.indexPath = path.join(dbDir, "hnsw_index.dat");
 
     if (!this.enabled) {
-      this.logger.log('HNSW index disabled. Set ENABLE_HNSW_INDEX=true to enable ANN search.');
+      this.logger.log(
+        "HNSW index disabled. Set ENABLE_HNSW_INDEX=true to enable ANN search.",
+      );
     }
   }
 
@@ -48,20 +51,27 @@ export class HnswVectorstoreService implements OnModuleInit {
 
     try {
       // Initialize HNSW index
-      this.index = new HierarchicalNSW('cosine', this.dimensions);
+      this.index = new HierarchicalNSW("cosine", this.dimensions);
 
       // Try to load existing index
-      if (fs.existsSync(this.indexPath) && fs.existsSync(this.indexPath + '.meta')) {
-        this.logger.log('Loading existing HNSW index...');
+      if (
+        fs.existsSync(this.indexPath) &&
+        fs.existsSync(this.indexPath + ".meta")
+      ) {
+        this.logger.log("Loading existing HNSW index...");
         await this.loadIndex();
-        this.logger.log(`HNSW index loaded with ${this.index.getCurrentCount()} vectors`);
+        this.logger.log(
+          `HNSW index loaded with ${this.index.getCurrentCount()} vectors`,
+        );
       } else {
-        this.logger.log('Building new HNSW index from SQLite documents...');
+        this.logger.log("Building new HNSW index from SQLite documents...");
         await this.rebuildIndex();
-        this.logger.log(`HNSW index built with ${this.index.getCurrentCount()} vectors`);
+        this.logger.log(
+          `HNSW index built with ${this.index.getCurrentCount()} vectors`,
+        );
       }
     } catch (error) {
-      this.logger.error('Failed to initialize HNSW index', error);
+      this.logger.error("Failed to initialize HNSW index", error);
       this.enabled = false;
     }
   }
@@ -69,8 +79,16 @@ export class HnswVectorstoreService implements OnModuleInit {
   /**
    * Add document to both SQLite and HNSW index
    */
-  addDocument(content: string, embedding: number[], metadata: Record<string, any> = {}): string {
-    const docId = this.sqliteVectorstore.addDocument(content, embedding, metadata);
+  addDocument(
+    content: string,
+    embedding: number[],
+    metadata: Record<string, any> = {},
+  ): string {
+    const docId = this.sqliteVectorstore.addDocument(
+      content,
+      embedding,
+      metadata,
+    );
 
     if (this.enabled && this.index) {
       try {
@@ -81,10 +99,12 @@ export class HnswVectorstoreService implements OnModuleInit {
 
         // Persist index periodically (every 100 additions)
         if (this.nextHnswId % 100 === 0) {
-          this.saveIndex().catch(err => this.logger.error('Failed to save HNSW index', err));
+          this.saveIndex().catch((err) =>
+            this.logger.error("Failed to save HNSW index", err),
+          );
         }
       } catch (error) {
-        this.logger.error('Failed to add document to HNSW index', error);
+        this.logger.error("Failed to add document to HNSW index", error);
       }
     }
 
@@ -94,8 +114,16 @@ export class HnswVectorstoreService implements OnModuleInit {
   /**
    * Batch add documents (more efficient)
    */
-  addDocuments(contents: string[], embeddings: number[][], metadatas?: Record<string, any>[]): string[] {
-    const docIds = this.sqliteVectorstore.addDocuments(contents, embeddings, metadatas);
+  addDocuments(
+    contents: string[],
+    embeddings: number[][],
+    metadatas?: Record<string, any>[],
+  ): string[] {
+    const docIds = this.sqliteVectorstore.addDocuments(
+      contents,
+      embeddings,
+      metadatas,
+    );
 
     if (this.enabled && this.index) {
       try {
@@ -108,9 +136,11 @@ export class HnswVectorstoreService implements OnModuleInit {
         }
 
         // Save index after batch
-        this.saveIndex().catch(err => this.logger.error('Failed to save HNSW index', err));
+        this.saveIndex().catch((err) =>
+          this.logger.error("Failed to save HNSW index", err),
+        );
       } catch (error) {
-        this.logger.error('Failed to add documents to HNSW index', error);
+        this.logger.error("Failed to add documents to HNSW index", error);
       }
     }
 
@@ -122,13 +152,25 @@ export class HnswVectorstoreService implements OnModuleInit {
    */
   async similaritySearch(
     queryEmbedding: number[],
-    k = 5
-  ): Promise<Array<{ id: string; score: number; content: string; metadata: Record<string, any> }>> {
+    k = 5,
+  ): Promise<
+    Array<{
+      id: string;
+      score: number;
+      content: string;
+      metadata: Record<string, any>;
+    }>
+  > {
     if (this.enabled && this.index && this.index.getCurrentCount() > 0) {
       try {
         // HNSW ANN search
         const result = this.index.searchKnn(queryEmbedding, k);
-        const docs: Array<{ id: string; score: number; content: string; metadata: Record<string, any> }> = [];
+        const docs: Array<{
+          id: string;
+          score: number;
+          content: string;
+          metadata: Record<string, any>;
+        }> = [];
 
         for (let i = 0; i < result.neighbors.length; i++) {
           const hnswId = result.neighbors[i];
@@ -146,15 +188,20 @@ export class HnswVectorstoreService implements OnModuleInit {
           }
         }
 
-        this.logger.debug(`HNSW search returned ${docs.length} results for k=${k}`);
+        this.logger.debug(
+          `HNSW search returned ${docs.length} results for k=${k}`,
+        );
         return docs;
       } catch (error) {
-        this.logger.error('HNSW search failed, falling back to naive search', error);
+        this.logger.error(
+          "HNSW search failed, falling back to naive search",
+          error,
+        );
       }
     }
 
     // Fallback to naive cosine similarity
-    this.logger.debug('Using naive cosine similarity search');
+    this.logger.debug("Using naive cosine similarity search");
     return this.sqliteVectorstore.similaritySearch(queryEmbedding, k);
   }
 
@@ -184,7 +231,9 @@ export class HnswVectorstoreService implements OnModuleInit {
         // Note: hnswlib-node doesn't support deletion, must rebuild index
         this.docToIdMap.delete(id);
         this.idToDocMap.delete(hnswId);
-        this.logger.warn('Document deleted from SQLite. HNSW index should be rebuilt for optimal performance.');
+        this.logger.warn(
+          "Document deleted from SQLite. HNSW index should be rebuilt for optimal performance.",
+        );
       }
     }
 
@@ -199,14 +248,15 @@ export class HnswVectorstoreService implements OnModuleInit {
 
     if (this.enabled && this.index) {
       // Reset HNSW index
-      this.index = new HierarchicalNSW('cosine', this.dimensions);
+      this.index = new HierarchicalNSW("cosine", this.dimensions);
       this.idToDocMap.clear();
       this.docToIdMap.clear();
       this.nextHnswId = 0;
 
       // Delete index files
       if (fs.existsSync(this.indexPath)) fs.unlinkSync(this.indexPath);
-      if (fs.existsSync(this.indexPath + '.meta')) fs.unlinkSync(this.indexPath + '.meta');
+      if (fs.existsSync(this.indexPath + ".meta"))
+        fs.unlinkSync(this.indexPath + ".meta");
     }
   }
 
@@ -217,7 +267,7 @@ export class HnswVectorstoreService implements OnModuleInit {
   async rebuildIndex(): Promise<void> {
     if (!this.enabled || !this.index) return;
 
-    this.logger.log('Rebuilding HNSW index from SQLite...');
+    this.logger.log("Rebuilding HNSW index from SQLite...");
     const startTime = Date.now();
 
     // Reset mappings
@@ -228,7 +278,7 @@ export class HnswVectorstoreService implements OnModuleInit {
     // Get all documents
     const docs = this.sqliteVectorstore.getAllDocuments();
     if (docs.length === 0) {
-      this.logger.log('No documents to index');
+      this.logger.log("No documents to index");
       return;
     }
 
@@ -246,7 +296,9 @@ export class HnswVectorstoreService implements OnModuleInit {
     await this.saveIndex();
 
     const duration = Date.now() - startTime;
-    this.logger.log(`HNSW index rebuilt with ${docs.length} vectors in ${duration}ms`);
+    this.logger.log(
+      `HNSW index rebuilt with ${docs.length} vectors in ${duration}ms`,
+    );
   }
 
   /**
@@ -271,11 +323,15 @@ export class HnswVectorstoreService implements OnModuleInit {
         idToDocMap: Array.from(this.idToDocMap.entries()),
         docToIdMap: Array.from(this.docToIdMap.entries()),
       };
-      fs.writeFileSync(this.indexPath + '.meta', JSON.stringify(metadata), 'utf-8');
+      fs.writeFileSync(
+        this.indexPath + ".meta",
+        JSON.stringify(metadata),
+        "utf-8",
+      );
 
       this.logger.debug(`HNSW index saved to ${this.indexPath}`);
     } catch (error) {
-      this.logger.error('Failed to save HNSW index', error);
+      this.logger.error("Failed to save HNSW index", error);
       throw error;
     }
   }
@@ -288,7 +344,7 @@ export class HnswVectorstoreService implements OnModuleInit {
 
     try {
       // Load metadata
-      const metaStr = fs.readFileSync(this.indexPath + '.meta', 'utf-8');
+      const metaStr = fs.readFileSync(this.indexPath + ".meta", "utf-8");
       const metadata = JSON.parse(metaStr);
 
       this.nextHnswId = metadata.nextHnswId;
@@ -302,7 +358,7 @@ export class HnswVectorstoreService implements OnModuleInit {
 
       this.logger.debug(`HNSW index loaded from ${this.indexPath}`);
     } catch (error) {
-      this.logger.error('Failed to load HNSW index', error);
+      this.logger.error("Failed to load HNSW index", error);
       throw error;
     }
   }
@@ -310,7 +366,11 @@ export class HnswVectorstoreService implements OnModuleInit {
   /**
    * Get statistics about the HNSW index
    */
-  getIndexStats(): { enabled: boolean; vectorCount: number; indexPath: string } {
+  getIndexStats(): {
+    enabled: boolean;
+    vectorCount: number;
+    indexPath: string;
+  } {
     return {
       enabled: this.enabled,
       vectorCount: this.index ? this.index.getCurrentCount() : 0,
@@ -321,7 +381,11 @@ export class HnswVectorstoreService implements OnModuleInit {
   /**
    * Benchmark: Compare HNSW vs naive search performance
    */
-  async benchmark(queryEmbedding: number[], k = 5, iterations = 100): Promise<{
+  async benchmark(
+    queryEmbedding: number[],
+    k = 5,
+    iterations = 100,
+  ): Promise<{
     hnswAvgMs: number;
     naiveAvgMs: number;
     speedup: number;
@@ -341,7 +405,10 @@ export class HnswVectorstoreService implements OnModuleInit {
     const naiveStart = Date.now();
     let naiveResults = 0;
     for (let i = 0; i < iterations; i++) {
-      const results = this.sqliteVectorstore.similaritySearch(queryEmbedding, k);
+      const results = this.sqliteVectorstore.similaritySearch(
+        queryEmbedding,
+        k,
+      );
       naiveResults = results.length;
     }
     const naiveAvgMs = (Date.now() - naiveStart) / iterations;

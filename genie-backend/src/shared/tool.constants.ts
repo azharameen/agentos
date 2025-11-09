@@ -3,15 +3,15 @@
  * Defines categories for organizing agent tools
  */
 export enum ToolCategory {
-  WEB = 'web',
-  FILESYSTEM = 'filesystem',
-  GIT = 'git',
-  TODO = 'todo',
-  MATH = 'math',
-  STRING = 'string',
-  DATETIME = 'datetime',
-  GENERAL = 'general',
-  RAG = 'rag',
+  WEB = "web",
+  FILESYSTEM = "filesystem",
+  GIT = "git",
+  TODO = "todo",
+  MATH = "math",
+  STRING = "string",
+  DATETIME = "datetime",
+  GENERAL = "general",
+  RAG = "rag",
 }
 
 /**

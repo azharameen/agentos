@@ -1,7 +1,7 @@
-import { Injectable, Logger } from '@nestjs/common';
-import Database from 'better-sqlite3';
-import { v4 as uuidv4 } from 'uuid';
-import * as fs from 'fs';
+import { Injectable, Logger } from "@nestjs/common";
+import Database from "better-sqlite3";
+import { v4 as uuidv4 } from "uuid";
+import * as fs from "fs";
 
 export interface SQLiteVectorDocument {
   id: string;
@@ -19,52 +19,82 @@ export class SqliteVectorstoreService {
 
   constructor() {
     // Use env var or default path
-    this.dbPath = process.env.RAG_SQLITE_PATH || './data/rag_store.sqlite';
+    this.dbPath = process.env.RAG_SQLITE_PATH || "./data/rag_store.sqlite";
     this.initialize();
   }
 
   private initialize() {
     // Ensure directory exists
-    const dir = this.dbPath.replace(/\\/g, '/').split('/').slice(0, -1).join('/');
+    const dir = this.dbPath
+      .replace(/\\/g, "/")
+      .split("/")
+      .slice(0, -1)
+      .join("/");
     if (dir && !fs.existsSync(dir)) {
       fs.mkdirSync(dir, { recursive: true });
     }
 
     this.db = new Database(this.dbPath);
-    this.db.pragma('journal_mode = WAL');
+    this.db.pragma("journal_mode = WAL");
 
     // Create tables
-    this.db.prepare(
-      `CREATE TABLE IF NOT EXISTS documents (
+    this.db
+      .prepare(
+        `CREATE TABLE IF NOT EXISTS documents (
         id TEXT PRIMARY KEY,
         content TEXT NOT NULL,
         metadata TEXT,
         embedding TEXT NOT NULL,
         created_at TEXT NOT NULL
-      )`
-    ).run();
+      )`,
+      )
+      .run();
 
     // Index content for faster lookups
-    this.db.prepare(`CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at)`).run();
+    this.db
+      .prepare(
+        `CREATE INDEX IF NOT EXISTS idx_documents_created_at ON documents(created_at)`,
+      )
+      .run();
 
     this.logger.log(`SQLite vectorstore initialized at ${this.dbPath}`);
   }
 
-  addDocument(content: string, embedding: number[], metadata: Record<string, any> = {}): string {
+  addDocument(
+    content: string,
+    embedding: number[],
+    metadata: Record<string, any> = {},
+  ): string {
     const id = uuidv4();
     const createdAt = new Date().toISOString();
-    const stmt = this.db.prepare(`INSERT INTO documents (id, content, metadata, embedding, created_at) VALUES (?, ?, ?, ?, ?)`);
-    stmt.run(id, content, JSON.stringify(metadata || {}), JSON.stringify(embedding), createdAt);
+    const stmt = this.db.prepare(
+      `INSERT INTO documents (id, content, metadata, embedding, created_at) VALUES (?, ?, ?, ?, ?)`,
+    );
+    stmt.run(
+      id,
+      content,
+      JSON.stringify(metadata || {}),
+      JSON.stringify(embedding),
+      createdAt,
+    );
     return id;
   }
 
-  addDocuments(contents: string[], embeddings: number[][], metadatas?: Record<string, any>[]): string[] {
+  addDocuments(
+    contents: string[],
+    embeddings: number[][],
+    metadatas?: Record<string, any>[],
+  ): string[] {
     const ids: string[] = [];
-    const insert = this.db.prepare(`INSERT INTO documents (id, content, metadata, embedding, created_at) VALUES (?, ?, ?, ?, ?)`);
+    const insert = this.db.prepare(
+      `INSERT INTO documents (id, content, metadata, embedding, created_at) VALUES (?, ?, ?, ?, ?)`,
+    );
     const now = new Date().toISOString();
-    const insertMany = this.db.transaction((rows: Array<[string, string, string, string, string]>) => {
-      for (const r of rows) insert.run(...r);
-    });
+    const insertMany = this.db.transaction(
+      (rows: Array<[string, string, string, string, string]>) => {
+        for (const r of rows) insert.run(...r);
+      },
+    );
 
     const rows: Array<[string, string, string, string, string]> = [];
     for (let i = 0; i < contents.length; i++) {
@@ -72,7 +102,13 @@ export class SqliteVectorstoreService {
       const content = contents[i];
       const embedding = embeddings[i];
       const meta = metadatas?.[i] || {};
-      rows.push([id, content, JSON.stringify(meta), JSON.stringify(embedding), now]);
+      rows.push([
+        id,
+        content,
+        JSON.stringify(meta),
+        JSON.stringify(embedding),
+        now,
+      ]);
       ids.push(id);
     }
 
@@ -81,7 +117,9 @@ export class SqliteVectorstoreService {
   }
 
   getDocument(id: string): SQLiteVectorDocument | undefined {
-    const row: any = this.db.prepare(`SELECT * FROM documents WHERE id = ?`).get(id);
+    const row: any = this.db
+      .prepare(`SELECT * FROM documents WHERE id = ?`)
+      .get(id);
     if (!row) return undefined;
     return {
       id: row.id,
@@ -93,7 +131,9 @@ export class SqliteVectorstoreService {
   }
 
   getAllDocuments(): SQLiteVectorDocument[] {
-    const rows = this.db.prepare(`SELECT * FROM documents ORDER BY created_at DESC`).all();
+    const rows = this.db
+      .prepare(`SELECT * FROM documents ORDER BY created_at DESC`)
+      .all();
     return rows.map((row: any) => ({
       id: row.id,
       content: row.content,
@@ -113,13 +153,28 @@ export class SqliteVectorstoreService {
   }
 
   // Naive similarity search: load all embeddings and compute cosine similarity in JS
-  similaritySearch(queryEmbedding: number[], k = 5): Array<{ id: string; score: number; content: string; metadata: Record<string, any> }> {
-    const rows = this.db.prepare(`SELECT id, content, metadata, embedding FROM documents`).all();
+  similaritySearch(
+    queryEmbedding: number[],
+    k = 5,
+  ): Array<{
+    id: string;
+    score: number;
+    content: string;
+    metadata: Record<string, any>;
+  }> {
+    const rows = this.db
+      .prepare(`SELECT id, content, metadata, embedding FROM documents`)
+      .all();
     const results = rows
       .map((row: any) => {
         const emb = JSON.parse(row.embedding) as number[];
         const score = this.cosineSimilarity(queryEmbedding, emb);
-        return { id: row.id, content: row.content, metadata: row.metadata ? JSON.parse(row.metadata) : {}, score };
+        return {
+          id: row.id,
+          content: row.content,
+          metadata: row.metadata ? JSON.parse(row.metadata) : {},
+          score,
+        };
       })
       .sort((a: any, b: any) => b.score - a.score)
       .slice(0, k);

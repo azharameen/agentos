@@ -1,4 +1,4 @@
 export enum ModelType {
-  CHAT = 'chat',
-  RESPONSE = 'response'
+  CHAT = "chat",
+  RESPONSE = "response",
 }

@@ -1,23 +1,32 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { z } from 'zod';
-import { ToolCategory } from '../../shared/tool.constants';
-import { Logger } from '@nestjs/common';
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { z } from "zod";
+import { Logger } from "@nestjs/common";
 
 /**
  * Web Search Tool
  * Searches the web for information (placeholder - can be extended with real APIs like Bing, Google, SerpAPI)
  */
 export const createWebSearchTool = (): DynamicStructuredTool => {
-  const logger = new Logger('WebSearchTool');
+  const logger = new Logger("WebSearchTool");
 
   return new DynamicStructuredTool({
-    name: 'web_search',
-    description: 'Searches the web for information. Use this when you need current information or facts that you don\'t have in your training data.',
+    name: "web_search",
+    description:
+      "Searches the web for information. Use this when you need current information or facts that you don't have in your training data.",
     schema: z.object({
-      query: z.string().describe('The search query'),
-      maxResults: z.number().optional().describe('Maximum number of results to return (default: 5)'),
+      query: z.string().describe("The search query"),
+      maxResults: z
+        .number()
+        .optional()
+        .describe("Maximum number of results to return (default: 5)"),
     }),
-    func: async ({ query, maxResults = 5 }: { query: string; maxResults?: number }): Promise<string> => {
+    func: async ({
+      query,
+      maxResults = 5,
+    }: {
+      query: string;
+      maxResults?: number;
+    }): Promise<string> => {
       try {
         logger.log(`Web search requested for: ${query}`);
 
@@ -48,10 +57,4 @@ For now, I can help you with information from my training data or other availabl
       }
     },
   });
-};
-
-export const WEB_SEARCH_TOOL_METADATA = {
-  name: 'web_search',
-  category: ToolCategory.WEB,
-  enabled: true,
 };

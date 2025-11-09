@@ -43,16 +43,18 @@ export class ObservabilityService implements OnModuleInit {
       const apiKey = process.env.LANGCHAIN_API_KEY;
       if (!apiKey) {
         this.logger.warn(
-          "LANGCHAIN_TRACING_V2 is enabled but LANGCHAIN_API_KEY is not set. Tracing will not work."
+          "LANGCHAIN_TRACING_V2 is enabled but LANGCHAIN_API_KEY is not set. Tracing will not work.",
         );
         this.tracingEnabled = false;
       } else {
         this.logger.log(
-          `LangSmith tracing enabled for project: ${this.projectName}`
+          `LangSmith tracing enabled for project: ${this.projectName}`,
         );
       }
     } else {
-      this.logger.log("LangSmith tracing is disabled. Set LANGCHAIN_TRACING_V2=true to enable.");
+      this.logger.log(
+        "LangSmith tracing is disabled. Set LANGCHAIN_TRACING_V2=true to enable.",
+      );
     }
   }
 
@@ -76,9 +78,14 @@ export class ObservabilityService implements OnModuleInit {
   createStreamingHandler(
     onToken?: (token: string) => void,
     onComplete?: (response: string) => void,
-    onError?: (error: Error) => void
+    onError?: (error: Error) => void,
   ): BaseCallbackHandler {
-    return new StreamingCallbackHandler(onToken, onComplete, onError, this.logger);
+    return new StreamingCallbackHandler(
+      onToken,
+      onComplete,
+      onError,
+      this.logger,
+    );
   }
 
   /**
@@ -86,7 +93,7 @@ export class ObservabilityService implements OnModuleInit {
    */
   createMetricsHandler(
     sessionId: string,
-    onMetrics?: (metrics: AgentMetrics) => void
+    onMetrics?: (metrics: AgentMetrics) => void,
   ): BaseCallbackHandler {
     return new MetricsCallbackHandler(sessionId, onMetrics, this.logger);
   }
@@ -110,9 +117,9 @@ export class ObservabilityService implements OnModuleInit {
       metadata: {
         ...metadata,
         timestamp: new Date().toISOString(),
-        project: this.projectName
+        project: this.projectName,
       },
-      tags: metadata?.tags || []
+      tags: metadata?.tags || [],
     };
   }
 }
@@ -129,7 +136,7 @@ class StreamingCallbackHandler extends BaseCallbackHandler {
     private onToken?: (token: string) => void,
     private onComplete?: (response: string) => void,
     private onError?: (error: Error) => void,
-    private logger?: Logger
+    private logger?: Logger,
   ) {
     super();
   }
@@ -170,7 +177,7 @@ class MetricsCallbackHandler extends BaseCallbackHandler {
   constructor(
     private sessionId: string,
     private onMetrics?: (metrics: AgentMetrics) => void,
-    private logger?: Logger
+    private logger?: Logger,
   ) {
     super();
     this.metrics = {
@@ -183,7 +190,7 @@ class MetricsCallbackHandler extends BaseCallbackHandler {
       totalDuration: 0,
       llmDuration: 0,
       toolDuration: 0,
-      errors: 0
+      errors: 0,
     };
   }
 
@@ -198,7 +205,7 @@ class MetricsCallbackHandler extends BaseCallbackHandler {
     }
     if (this.logger) {
       this.logger.debug(
-        `Metrics for session ${this.sessionId}: ${JSON.stringify(this.metrics)}`
+        `Metrics for session ${this.sessionId}: ${JSON.stringify(this.metrics)}`,
       );
     }
   }
@@ -247,18 +254,18 @@ class LoggingCallbackHandler extends BaseCallbackHandler {
 
   constructor(
     private verbose: boolean,
-    private logger: Logger
+    private logger: Logger,
   ) {
     super();
   }
 
   async handleChainStart(
     chain: Serialized,
-    inputs: ChainValues
+    inputs: ChainValues,
   ): Promise<void> {
     if (this.verbose) {
       this.logger.debug(
-        `Chain started: ${chain.id?.[chain.id.length - 1] || "unknown"}`
+        `Chain started: ${chain.id?.[chain.id.length - 1] || "unknown"}`,
       );
       this.logger.debug(`Inputs: ${JSON.stringify(inputs, null, 2)}`);
     }
@@ -271,12 +278,11 @@ class LoggingCallbackHandler extends BaseCallbackHandler {
     }
   }
 
-  async handleLLMStart(
-    llm: Serialized,
-    prompts: string[]
-  ): Promise<void> {
+  async handleLLMStart(llm: Serialized, prompts: string[]): Promise<void> {
     if (this.verbose) {
-      this.logger.debug(`LLM call started: ${llm.id?.[llm.id.length - 1] || "unknown"}`);
+      this.logger.debug(
+        `LLM call started: ${llm.id?.[llm.id.length - 1] || "unknown"}`,
+      );
       this.logger.debug(`Prompts: ${prompts.join(", ")}`);
     }
   }
@@ -288,11 +294,10 @@ class LoggingCallbackHandler extends BaseCallbackHandler {
     }
   }
 
-  async handleToolStart(
-    tool: Serialized,
-    input: string
-  ): Promise<void> {
-    this.logger.log(`Tool execution: ${tool.id?.[tool.id.length - 1] || "unknown"}`);
+  async handleToolStart(tool: Serialized, input: string): Promise<void> {
+    this.logger.log(
+      `Tool execution: ${tool.id?.[tool.id.length - 1] || "unknown"}`,
+    );
     if (this.verbose) {
       this.logger.debug(`Input: ${input}`);
     }

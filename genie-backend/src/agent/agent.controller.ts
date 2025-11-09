@@ -34,34 +34,7 @@ import {
 import { v4 as uuidv4 } from "uuid";
 import { AzureOpenAIAdapter } from "./services/azure-openai-adapter.service";
 import { AgentMemoryService } from "./services/agent-memory.service";
-
-// CopilotKit allowed event types
-export enum CopilotKitEventType {
-  TEXT_MESSAGE_START = "TEXT_MESSAGE_START",
-  TEXT_MESSAGE_CONTENT = "TEXT_MESSAGE_CONTENT",
-  TEXT_MESSAGE_END = "TEXT_MESSAGE_END",
-  TEXT_MESSAGE_CHUNK = "TEXT_MESSAGE_CHUNK",
-  THINKING_START = "THINKING_START",
-  THINKING_END = "THINKING_END",
-  THINKING_TEXT_MESSAGE_START = "THINKING_TEXT_MESSAGE_START",
-  THINKING_TEXT_MESSAGE_CONTENT = "THINKING_TEXT_MESSAGE_CONTENT",
-  THINKING_TEXT_MESSAGE_END = "THINKING_TEXT_MESSAGE_END",
-  TOOL_CALL_START = "TOOL_CALL_START",
-  TOOL_CALL_ARGS = "TOOL_CALL_ARGS",
-  TOOL_CALL_END = "TOOL_CALL_END",
-  TOOL_CALL_CHUNK = "TOOL_CALL_CHUNK",
-  TOOL_CALL_RESULT = "TOOL_CALL_RESULT",
-  STATE_SNAPSHOT = "STATE_SNAPSHOT",
-  STATE_DELTA = "STATE_DELTA",
-  MESSAGES_SNAPSHOT = "MESSAGES_SNAPSHOT",
-  RAW = "RAW",
-  CUSTOM = "CUSTOM",
-  RUN_STARTED = "RUN_STARTED",
-  RUN_FINISHED = "RUN_FINISHED",
-  RUN_ERROR = "RUN_ERROR",
-  STEP_STARTED = "STEP_STARTED",
-  STEP_FINISHED = "STEP_FINISHED",
-}
+import { CopilotKitEventType } from "../shared/copilotkit-events.enum";
 
 @ApiTags("Agent")
 @Controller("agent")
@@ -90,6 +63,9 @@ export class AgentController {
   @Post("query")
   @ApiOperation({
     summary: "Query the AI agent with a prompt and model (legacy endpoint).",
+    description:
+      "⚠️ DEPRECATED: Use POST /agent/execute instead for full agentic capabilities including tool use, RAG, and workflows.",
+    deprecated: true,
   })
   @ApiBody({ type: AgentQueryDto })
   @ApiResponse({ status: 200, description: "Agent response." })

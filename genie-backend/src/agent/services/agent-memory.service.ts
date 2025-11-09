@@ -1,6 +1,9 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { SessionMemory, LongTermMemoryEntry } from '../../shared/agent.interface';
+import { Injectable, Logger } from "@nestjs/common";
+import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import {
+  SessionMemory,
+  LongTermMemoryEntry,
+} from "../../shared/agent.interface";
 
 /**
  * Session memory structure
@@ -39,7 +42,7 @@ export class AgentMemoryService {
         conversationHistory: [],
         context: {},
         createdAt: new Date(),
-        lastAccessedAt: new Date()
+        lastAccessedAt: new Date(),
       };
       this.sessionMemoryStore.set(sessionId, newSession);
       this.logger.log(`Created new session: ${sessionId}`);
@@ -53,11 +56,10 @@ export class AgentMemoryService {
   /**
    * Add a message to conversation history
    */
-  addMessage(sessionId: string, role: 'human' | 'ai', content: string): void {
+  addMessage(sessionId: string, role: "human" | "ai", content: string): void {
     const session = this.getSession(sessionId);
-    const message = role === 'human'
-      ? new HumanMessage(content)
-      : new AIMessage(content);
+    const message =
+      role === "human" ? new HumanMessage(content) : new AIMessage(content);
 
     session.conversationHistory.push(message);
     this.logger.debug(`Added ${role} message to session ${sessionId}`);
@@ -110,7 +112,7 @@ export class AgentMemoryService {
   addToLongTermMemory(
     content: string,
     metadata: Record<string, any> = {},
-    embedding?: number[]
+    embedding?: number[],
   ): string {
     const id = `ltm_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`;
     const entry: LongTermMemoryEntry = {
@@ -118,7 +120,7 @@ export class AgentMemoryService {
       content,
       metadata,
       embedding,
-      createdAt: new Date()
+      createdAt: new Date(),
     };
 
     this.longTermMemoryStore.set(id, entry);
@@ -129,7 +131,10 @@ export class AgentMemoryService {
   /**
    * Search long-term memory by keyword (simple text search)
    */
-  searchLongTermMemory(query: string, limit: number = 5): LongTermMemoryEntry[] {
+  searchLongTermMemory(
+    query: string,
+    limit: number = 5,
+  ): LongTermMemoryEntry[] {
     const results: LongTermMemoryEntry[] = [];
     const queryLower = query.toLowerCase();
 
@@ -140,7 +145,9 @@ export class AgentMemoryService {
       }
     }
 
-    this.logger.debug(`Found ${results.length} long-term memory entries for query: ${query}`);
+    this.logger.debug(
+      `Found ${results.length} long-term memory entries for query: ${query}`,
+    );
     return results;
   }
 
@@ -185,7 +192,7 @@ export class AgentMemoryService {
     return {
       activeSessions: this.sessionMemoryStore.size,
       longTermEntries: this.longTermMemoryStore.size,
-      totalMessages
+      totalMessages,
     };
   }
 
@@ -206,7 +213,8 @@ export class AgentMemoryService {
     let cleaned = 0;
 
     for (const [sessionId, session] of this.sessionMemoryStore.entries()) {
-      const timeSinceLastAccess = now.getTime() - session.lastAccessedAt.getTime();
+      const timeSinceLastAccess =
+        now.getTime() - session.lastAccessedAt.getTime();
       if (timeSinceLastAccess > this.SESSION_TIMEOUT_MS) {
         this.sessionMemoryStore.delete(sessionId);
         cleaned++;

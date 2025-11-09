@@ -1,14 +1,14 @@
 /* eslint-disable */
-import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { ToolRegistryService } from './tool-registry.service';
-import { ToolCategory } from '../../shared/tool.constants';
-import { z } from 'zod';
+import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
+import { ToolRegistryService } from "./tool-registry.service";
+import { ToolCategory } from "../../shared/tool.constants";
+import { z } from "zod";
 
 /**
  * AgentToolsService
  * Initializes and registers all built-in tools for the agent
  * Following Single Responsibility Principle: Only manages tool initialization
- * 
+ *
  * Updated: Calculator and web-search tools are disabled per user request
  * Focus on: filesystem, git, todo, string manipulation, date/time utilities
  */
@@ -16,19 +16,19 @@ import { z } from 'zod';
 export class AgentToolsService implements OnModuleInit {
   private readonly logger = new Logger(AgentToolsService.name);
 
-  constructor(private readonly toolRegistry: ToolRegistryService) { }
+  constructor(private readonly toolRegistry: ToolRegistryService) {}
 
   /**
    * Initialize all tools on module start
    */
   async onModuleInit() {
-    this.logger.log('Initializing agent tools...');
+    this.logger.log("Initializing agent tools...");
     // Calculator and web-search disabled per user request
     // this.registerCalculatorTools();
     // this.registerWebTools();
     this.registerStringTools();
     this.registerDateTimeTools();
-    this.logger.log('Agent tools initialized successfully');
+    this.logger.log("Agent tools initialized successfully");
   }
 
   /**
@@ -83,10 +83,10 @@ export class AgentToolsService implements OnModuleInit {
    */
   private registerStringTools() {
     this.toolRegistry.registerTool(
-      'string_length',
-      'Returns the length of a string.',
+      "string_length",
+      "Returns the length of a string.",
       z.object({
-        text: z.string().describe('The text to measure'),
+        text: z.string().describe("The text to measure"),
       }),
       async ({ text }: { text: string }) =>
         `The length of the text is ${text.length} characters`,
@@ -94,33 +94,33 @@ export class AgentToolsService implements OnModuleInit {
     );
 
     this.toolRegistry.registerTool(
-      'string_reverse',
-      'Reverses a string.',
+      "string_reverse",
+      "Reverses a string.",
       z.object({
-        text: z.string().describe('The text to reverse'),
+        text: z.string().describe("The text to reverse"),
       }),
       async ({ text }: { text: string }) => {
-        const reversed = text.split('').reverse().join('');
+        const reversed = text.split("").reverse().join("");
         return `Reversed text: ${reversed}`;
       },
       ToolCategory.STRING,
     );
 
     this.toolRegistry.registerTool(
-      'string_uppercase',
-      'Converts a string to uppercase.',
+      "string_uppercase",
+      "Converts a string to uppercase.",
       z.object({
-        text: z.string().describe('The text to convert'),
+        text: z.string().describe("The text to convert"),
       }),
       async ({ text }: { text: string }) => text.toUpperCase(),
       ToolCategory.STRING,
     );
 
     this.toolRegistry.registerTool(
-      'string_lowercase',
-      'Converts a string to lowercase.',
+      "string_lowercase",
+      "Converts a string to lowercase.",
       z.object({
-        text: z.string().describe('The text to convert'),
+        text: z.string().describe("The text to convert"),
       }),
       async ({ text }: { text: string }) => text.toLowerCase(),
       ToolCategory.STRING,
@@ -200,8 +200,8 @@ export class AgentToolsService implements OnModuleInit {
    */
   private registerDateTimeTools() {
     this.toolRegistry.registerTool(
-      'current_time',
-      'Gets the current date and time.',
+      "current_time",
+      "Gets the current date and time.",
       z.object({
         timezone: z
           .string()
@@ -211,7 +211,7 @@ export class AgentToolsService implements OnModuleInit {
       async ({ timezone }: { timezone?: string }) => {
         const now = new Date();
         if (timezone) {
-          return `Current time in ${timezone}: ${now.toLocaleString('en-US', { timeZone: timezone })}`;
+          return `Current time in ${timezone}: ${now.toLocaleString("en-US", { timeZone: timezone })}`;
         }
         return `Current time (UTC): ${now.toISOString()}`;
       },
@@ -219,18 +219,18 @@ export class AgentToolsService implements OnModuleInit {
     );
 
     this.toolRegistry.registerTool(
-      'date_calculator',
-      'Calculates date differences or adds/subtracts time from a date.',
+      "date_calculator",
+      "Calculates date differences or adds/subtracts time from a date.",
       z.object({
         operation: z
-          .enum(['add', 'subtract', 'diff'])
-          .describe('Operation to perform'),
-        value: z.number().describe('Number of days/hours/minutes'),
-        unit: z.enum(['days', 'hours', 'minutes']).describe('Time unit'),
+          .enum(["add", "subtract", "diff"])
+          .describe("Operation to perform"),
+        value: z.number().describe("Number of days/hours/minutes"),
+        unit: z.enum(["days", "hours", "minutes"]).describe("Time unit"),
         from: z
           .string()
           .optional()
-          .describe('Starting date (ISO format, defaults to now)'),
+          .describe("Starting date (ISO format, defaults to now)"),
       }),
       async ({
         operation,
@@ -247,16 +247,16 @@ export class AgentToolsService implements OnModuleInit {
         let result = new Date(startDate);
 
         let multiplier = 60000; // minutes
-        if (unit === 'days') {
+        if (unit === "days") {
           multiplier = 86400000;
-        } else if (unit === 'hours') {
+        } else if (unit === "hours") {
           multiplier = 3600000;
         }
 
-        if (operation === 'add') {
+        if (operation === "add") {
           result = new Date(startDate.getTime() + value * multiplier);
           return `${value} ${unit} after ${startDate.toISOString()} is ${result.toISOString()}`;
-        } else if (operation === 'subtract') {
+        } else if (operation === "subtract") {
           result = new Date(startDate.getTime() - value * multiplier);
           return `${value} ${unit} before ${startDate.toISOString()} is ${result.toISOString()}`;
         } else {

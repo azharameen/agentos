@@ -201,7 +201,8 @@ export class LangChainAgentService {
         };
 
         // Defensive: always set messageId and delta as strings
-        const safeContent = typeof message.content === "string" ? message.content : "";
+        const safeContent =
+          typeof message.content === "string" ? message.content : "";
         const safeDelta = safeContent;
         messageCounter++;
         const safeMessageId = `${config.configurable.thread_id}-msg-${messageCounter}`;

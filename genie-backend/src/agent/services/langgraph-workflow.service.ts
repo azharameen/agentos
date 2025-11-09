@@ -1,19 +1,19 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Injectable, Logger } from "@nestjs/common";
 import {
   StateGraph,
   MessagesAnnotation,
   START,
   END,
   Annotation,
-} from '@langchain/langgraph';
-import { AzureChatOpenAI } from '@langchain/openai';
-import { BaseMessage, HumanMessage, AIMessage } from '@langchain/core/messages';
-import { DynamicStructuredTool } from '@langchain/core/tools';
+} from "@langchain/langgraph";
+import { AzureChatOpenAI } from "@langchain/openai";
+import { BaseMessage, HumanMessage, AIMessage } from "@langchain/core/messages";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 
 /**
  * LangGraph Workflow Service
  * Implements advanced graph-based agentic workflows with LangGraph
- * 
+ *
  * Features:
  * - Multi-step reasoning with branching logic
  * - Conditional edges based on agent output
@@ -30,7 +30,7 @@ const WorkflowState = Annotation.Root({
   ...MessagesAnnotation.spec,
   context: Annotation<string>({
     reducer: (a, b) => b ?? a,
-    default: () => '',
+    default: () => "",
   }),
   toolResults: Annotation<Record<string, any>>({
     reducer: (a, b) => ({ ...a, ...b }),
@@ -66,7 +66,7 @@ export class LangGraphWorkflowService {
     intermediateSteps: any[];
     toolsUsed: string[];
   }> {
-    this.logger.log('Executing LangGraph workflow');
+    this.logger.log("Executing LangGraph workflow");
 
     try {
       // Create the workflow graph
@@ -80,7 +80,7 @@ export class LangGraphWorkflowService {
 
       const initialState = {
         messages: initialMessages,
-        context: ragContext || '',
+        context: ragContext || "",
         toolResults: {},
         iteration: 0,
         shouldContinue: true,
@@ -91,14 +91,17 @@ export class LangGraphWorkflowService {
 
       // Extract output
       const lastMessage = result.messages[result.messages.length - 1];
-      const output = typeof lastMessage.content === 'string'
-        ? lastMessage.content
-        : JSON.stringify(lastMessage.content);
+      const output =
+        typeof lastMessage.content === "string"
+          ? lastMessage.content
+          : JSON.stringify(lastMessage.content);
 
       // Extract tools used
       const toolsUsed = Object.keys(result.toolResults || {});
 
-      this.logger.log(`Workflow completed with ${toolsUsed.length} tool(s) used`);
+      this.logger.log(
+        `Workflow completed with ${toolsUsed.length} tool(s) used`,
+      );
 
       return {
         output,
@@ -119,12 +122,12 @@ export class LangGraphWorkflowService {
     tools: DynamicStructuredTool[],
     maxIterations: number,
   ) {
-    const toolMap = new Map(tools.map(t => [t.name, t]));
+    const toolMap = new Map(tools.map((t) => [t.name, t]));
 
     // Define nodes
     const graph = new StateGraph(WorkflowState)
       // 1. Agent reasoning node
-      .addNode('agent', async (state: typeof WorkflowState.State) => {
+      .addNode("agent", async (state: typeof WorkflowState.State) => {
         this.logger.debug(`Agent node - iteration ${state.iteration}`);
 
         // Bind tools to LLM
@@ -135,7 +138,7 @@ export class LangGraphWorkflowService {
         if (state.context && state.iteration === 0) {
           messages = [
             new HumanMessage(
-              `Context from knowledge base:\n${state.context}\n\nPlease answer the user's question using this context when relevant.`
+              `Context from knowledge base:\n${state.context}\n\nPlease answer the user's question using this context when relevant.`,
             ),
             ...messages,
           ];
@@ -150,14 +153,16 @@ export class LangGraphWorkflowService {
         };
       })
       // 2. Tool execution node
-      .addNode('tools', async (state: typeof WorkflowState.State) => {
-        this.logger.debug('Tools node - executing tool calls');
+      .addNode("tools", async (state: typeof WorkflowState.State) => {
+        this.logger.debug("Tools node - executing tool calls");
 
-        const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+        const lastMessage = state.messages[
+          state.messages.length - 1
+        ] as AIMessage;
         const toolCalls = lastMessage.tool_calls || [];
 
         if (toolCalls.length === 0) {
-          this.logger.warn('Tools node called but no tool calls found');
+          this.logger.warn("Tools node called but no tool calls found");
           return { messages: [] };
         }
 
@@ -179,15 +184,18 @@ export class LangGraphWorkflowService {
 
             // Create tool message
             toolMessages.push({
-              role: 'tool',
-              content: typeof result === 'string' ? result : JSON.stringify(result),
+              role: "tool",
+              content:
+                typeof result === "string" ? result : JSON.stringify(result),
               tool_call_id: toolCall.id,
               name: toolCall.name,
             } as any);
           } catch (error: any) {
-            this.logger.error(`Tool execution failed: ${toolCall.name} - ${error.message}`);
+            this.logger.error(
+              `Tool execution failed: ${toolCall.name} - ${error.message}`,
+            );
             toolMessages.push({
-              role: 'tool',
+              role: "tool",
               content: `Error: ${error.message}`,
               tool_call_id: toolCall.id,
               name: toolCall.name,
@@ -201,37 +209,41 @@ export class LangGraphWorkflowService {
         };
       })
       // Define edges
-      .addEdge(START, 'agent')
+      .addEdge(START, "agent")
       // Conditional edge: decide if we need to call tools or finish
       .addConditionalEdges(
-        'agent',
+        "agent",
         (state: typeof WorkflowState.State) => {
-          const lastMessage = state.messages[state.messages.length - 1] as AIMessage;
+          const lastMessage = state.messages[
+            state.messages.length - 1
+          ] as AIMessage;
 
           // Check if we've exceeded max iterations
           if (state.iteration >= maxIterations) {
-            this.logger.debug('Max iterations reached, ending workflow');
-            return 'end';
+            this.logger.debug("Max iterations reached, ending workflow");
+            return "end";
           }
 
           // Check if there are tool calls
           const toolCalls = lastMessage.tool_calls || [];
           if (toolCalls.length > 0) {
-            this.logger.debug(`Agent wants to call ${toolCalls.length} tool(s)`);
-            return 'tools';
+            this.logger.debug(
+              `Agent wants to call ${toolCalls.length} tool(s)`,
+            );
+            return "tools";
           }
 
           // No tool calls, we're done
-          this.logger.debug('No tool calls, ending workflow');
-          return 'end';
+          this.logger.debug("No tool calls, ending workflow");
+          return "end";
         },
         {
-          tools: 'tools',
+          tools: "tools",
           end: END,
-        }
+        },
       )
       // After tools, go back to agent
-      .addEdge('tools', 'agent');
+      .addEdge("tools", "agent");
 
     // Compile the graph
     return graph.compile();
@@ -242,17 +254,19 @@ export class LangGraphWorkflowService {
    */
   async createHelloWorldWorkflow(): Promise<any> {
     const mockLlm = (state: typeof MessagesAnnotation.State) => {
-      return { messages: [{ role: 'ai', content: 'Hello world from LangGraph!' }] };
+      return {
+        messages: [{ role: "ai", content: "Hello world from LangGraph!" }],
+      };
     };
 
     const graph = new StateGraph(MessagesAnnotation)
-      .addNode('mock_llm', mockLlm)
-      .addEdge(START, 'mock_llm')
-      .addEdge('mock_llm', END)
+      .addNode("mock_llm", mockLlm)
+      .addEdge(START, "mock_llm")
+      .addEdge("mock_llm", END)
       .compile();
 
     const result = await graph.invoke({
-      messages: [{ role: 'user', content: 'hi!' }],
+      messages: [{ role: "user", content: "hi!" }],
     });
 
     return result;
@@ -267,19 +281,20 @@ export class LangGraphWorkflowService {
   ) {
     const graph = new StateGraph(WorkflowState)
       // 1. Retrieval node
-      .addNode('retrieve', async (state: typeof WorkflowState.State) => {
+      .addNode("retrieve", async (state: typeof WorkflowState.State) => {
         const lastMessage = state.messages[state.messages.length - 1];
-        const query = typeof lastMessage.content === 'string'
-          ? lastMessage.content
-          : '';
+        const query =
+          typeof lastMessage.content === "string" ? lastMessage.content : "";
 
-        this.logger.debug(`Retrieving context for: ${query.substring(0, 100)}...`);
+        this.logger.debug(
+          `Retrieving context for: ${query.substring(0, 100)}...`,
+        );
         const context = await retrievalFunction(query);
 
         return { context };
       })
       // 2. Generation node
-      .addNode('generate', async (state: typeof WorkflowState.State) => {
+      .addNode("generate", async (state: typeof WorkflowState.State) => {
         const query = state.messages[state.messages.length - 1];
         const context = state.context;
 
@@ -289,9 +304,9 @@ export class LangGraphWorkflowService {
 
         return { messages: [response] };
       })
-      .addEdge(START, 'retrieve')
-      .addEdge('retrieve', 'generate')
-      .addEdge('generate', END);
+      .addEdge(START, "retrieve")
+      .addEdge("retrieve", "generate")
+      .addEdge("generate", END);
 
     return graph.compile();
   }

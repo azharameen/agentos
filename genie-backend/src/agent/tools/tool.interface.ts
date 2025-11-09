@@ -1,7 +1,6 @@
-import { DynamicStructuredTool } from '@langchain/core/tools';
-import { ZodSchema } from 'zod';
-import { Logger } from '@nestjs/common';
-import { ToolCategory, TOOL_DEFAULTS } from '../../shared/tool.constants';
+import { DynamicStructuredTool } from "@langchain/core/tools";
+import { Logger } from "@nestjs/common";
+import { ToolCategory, TOOL_DEFAULTS } from "../../shared/tool.constants";
 
 /**
  * Metadata for a tool instance
@@ -51,7 +50,7 @@ export interface SafeToolConfig {
 
 /**
  * SafeToolWrapper - Wraps LangChain tools with validation, timeout, and error handling
- * 
+ *
  * Features:
  * - Input validation using Zod schemas
  * - Configurable timeout for long-running operations
@@ -120,7 +119,9 @@ export class SafeToolWrapper {
         const result = await this.executeWithTimeout(input, effectiveTimeout);
         const executionTime = Date.now() - startTime;
 
-        this.log(`Execution successful (${executionTime}ms, ${attempt} retries)`);
+        this.log(
+          `Execution successful (${executionTime}ms, ${attempt} retries)`,
+        );
 
         return {
           success: true,
@@ -133,7 +134,7 @@ export class SafeToolWrapper {
         this.logError(`Execution attempt ${attempt + 1} failed`, error);
 
         // Don't retry on validation errors or timeout errors
-        if (error.name === 'ValidationError' || error.name === 'TimeoutError') {
+        if (error.name === "ValidationError" || error.name === "TimeoutError") {
           break;
         }
       }
@@ -142,7 +143,7 @@ export class SafeToolWrapper {
     // All retries exhausted
     return {
       success: false,
-      error: lastError?.message ?? 'Unknown error',
+      error: lastError?.message ?? "Unknown error",
       executionTimeMs: Date.now() - startTime,
       retryCount: effectiveMaxRetries,
     };
@@ -158,7 +159,7 @@ export class SafeToolWrapper {
     return new Promise<TOutput>(async (resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         const error = new Error(`Tool execution timeout after ${timeoutMs}ms`);
-        error.name = 'TimeoutError';
+        error.name = "TimeoutError";
         reject(error);
       }, timeoutMs);
 
@@ -199,7 +200,7 @@ export class SafeToolWrapper {
    */
   setEnabled(enabled: boolean): void {
     this.metadata.enabled = enabled;
-    this.log(`Tool ${enabled ? 'enabled' : 'disabled'}`);
+    this.log(`Tool ${enabled ? "enabled" : "disabled"}`);
   }
 
   private log(message: string): void {
@@ -217,34 +218,4 @@ export class SafeToolWrapper {
   private sleep(ms: number): Promise<void> {
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
-}
-
-/**
- * Factory function to create a SafeToolWrapper from a DynamicStructuredTool
- */
-export function createSafeTool(
-  tool: DynamicStructuredTool,
-  metadata: ToolMetadata,
-  config?: SafeToolConfig,
-): SafeToolWrapper {
-  return new SafeToolWrapper(tool, metadata, config);
-}
-
-/**
- * Helper to validate a Zod schema against input
- */
-export function validateToolInput<T>(schema: ZodSchema<T>, input: unknown): T {
-  return schema.parse(input);
-}
-
-/**
- * Helper to create JSON output wrapper for consistent tool responses
- */
-export function createJsonOutput<T>(success: boolean, data?: T, error?: string): string {
-  return JSON.stringify({
-    success,
-    data: data ?? null,
-    error: error ?? null,
-    timestamp: new Date().toISOString(),
-  });
 }

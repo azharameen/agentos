@@ -1,0 +1,60 @@
+{
+  "openapi": "3.0.0",
+  "paths": {
+    "/agent/stream": {
+      "get": {
+        "description": "Server-Sent Events endpoint that streams agent execution progress, intermediate steps, and LLM tokens in real-time.\n\nRequired query parameters:\n- prompt (string): The user prompt to execute.\n\n\nSSE Event Format:\nEach event is sent as: data: { type: string, data: object }\\n\\n\nThe backend does not strictly validate required fields; the frontend should handle missing or extra fields gracefully.\nAllowed 'type' values: RUN_STARTED, TEXT_MESSAGE_CONTENT, TOOL_CALL_START, TOOL_CALL_END, RUN_FINISHED, RUN_ERROR\n\nExample event:\ndata: {\"type\":\"TEXT_MESSAGE_CONTENT\",\"data\":{\"delta\":\"Hello\"}}\n\n",
+        "operationId": "AgentController_streamAgenticTask",
+        "parameters": [
+          {
+            "name": "prompt",
+            "required": true,
+            "in": "query",
+            "description": "The user prompt to execute.",
+            "schema": {
+              "example": "What is the capital of France?",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE stream of agent events. Each event is a JSON object with 'type' and 'data'.",
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "example": {
+                    "type": "TEXT_MESSAGE_CONTENT",
+                    "data": {
+                      "delta": "Hello"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "summary": "Stream agent execution with real-time updates",
+        "tags": [
+          "Agent"
+        ]
+      }
+    }
+  },
+  "info": {
+    "title": "Agentica AI",
+    "description": "An Agentic AI Chat Interface",
+    "version": "1.0",
+    "contact": {}
+  },
+  "tags": [
+    {
+      "name": "Agent",
+      "description": "Endpoints for interacting with the AI agent."
+    }
+  ],
+  "servers": [],
+  "components": {
+    "schemas": {}
+  }
+}

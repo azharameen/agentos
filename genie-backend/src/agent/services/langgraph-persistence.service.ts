@@ -46,7 +46,9 @@ export class LangGraphPersistenceService implements OnModuleInit {
       }
 
       const dbPath = path.join(dbDir, "langgraph_checkpoints.db");
-      this.logger.log(`Initializing LangGraph checkpoints database at ${dbPath}`);
+      this.logger.log(
+        `Initializing LangGraph checkpoints database at ${dbPath}`,
+      );
 
       this.db = new Database(dbPath);
 
@@ -119,7 +121,7 @@ export class LangGraphPersistenceService implements OnModuleInit {
    */
   async getWorkflowState(
     threadId: string,
-    stateId?: string
+    stateId?: string,
   ): Promise<any | undefined> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -161,7 +163,7 @@ export class LangGraphPersistenceService implements OnModuleInit {
         stateId: row.checkpoint_id,
         parentStateId: row.parent_checkpoint_id,
         state,
-        metadata
+        metadata,
       };
     } catch (error: any) {
       this.logger.error(`Failed to get workflow state: ${error.message}`);
@@ -174,7 +176,7 @@ export class LangGraphPersistenceService implements OnModuleInit {
    */
   async listWorkflowStates(
     threadId: string,
-    limit: number = 10
+    limit: number = 10,
   ): Promise<any[]> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -191,13 +193,13 @@ export class LangGraphPersistenceService implements OnModuleInit {
 
       const rows = stmt.all(threadId, limit) as any[];
 
-      return rows.map(row => ({
+      return rows.map((row) => ({
         threadId,
         stateId: row.checkpoint_id,
         parentStateId: row.parent_checkpoint_id,
         state: JSON.parse(row.checkpoint.toString("utf-8")),
         metadata: row.metadata ? JSON.parse(row.metadata) : {},
-        createdAt: row.created_at
+        createdAt: row.created_at,
       }));
     } catch (error: any) {
       this.logger.error(`Failed to list workflow states: ${error.message}`);
@@ -213,7 +215,7 @@ export class LangGraphPersistenceService implements OnModuleInit {
     stateId: string,
     state: any,
     metadata: any = {},
-    parentStateId?: string
+    parentStateId?: string,
   ): Promise<void> {
     if (!this.db) {
       throw new Error("Database not initialized");
@@ -229,9 +231,17 @@ export class LangGraphPersistenceService implements OnModuleInit {
         VALUES (?, ?, ?, ?, ?)
       `);
 
-      stmt.run(threadId, stateId, stateBlob, metadataJson, parentStateId || null);
+      stmt.run(
+        threadId,
+        stateId,
+        stateBlob,
+        metadataJson,
+        parentStateId || null,
+      );
 
-      this.logger.debug(`Saved workflow state ${stateId} for thread ${threadId}`);
+      this.logger.debug(
+        `Saved workflow state ${stateId} for thread ${threadId}`,
+      );
     } catch (error: any) {
       this.logger.error(`Failed to save workflow state: ${error.message}`);
       throw error;
@@ -270,7 +280,10 @@ export class LangGraphPersistenceService implements OnModuleInit {
   /**
    * Delete all checkpoints for a thread
    */
-  async deleteThread(threadId: string, checkpointNs: string = ""): Promise<void> {
+  async deleteThread(
+    threadId: string,
+    checkpointNs: string = "",
+  ): Promise<void> {
     if (!this.db) {
       throw new Error("Database not initialized");
     }

@@ -1,15 +1,15 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { AzureOpenAIAdapter } from './azure-openai-adapter.service';
-import { ToolRegistryService } from './tool-registry.service';
-import { AgentMemoryService } from './agent-memory.service';
-import { LangChainAgentService } from './langchain-agent.service';
-import { RagService } from './rag.service';
-import { LangGraphWorkflowService } from './langgraph-workflow.service';
-import { DEFAULT_AGENT_MODEL } from '../../shared/agent-models.constants';
+import { Injectable, Logger } from "@nestjs/common";
+import { AzureOpenAIAdapter } from "./azure-openai-adapter.service";
+import { ToolRegistryService } from "./tool-registry.service";
+import { AgentMemoryService } from "./agent-memory.service";
+import { LangChainAgentService } from "./langchain-agent.service";
+import { RagService } from "./rag.service";
+import { LangGraphWorkflowService } from "./langgraph-workflow.service";
+import { DEFAULT_AGENT_MODEL } from "../../shared/agent-models.constants";
 import {
   AgentExecutionResult,
   AgentExecutionOptions,
-} from '../../shared/agent.interface';
+} from "../../shared/agent.interface";
 
 /**
  * AgentOrchestratorService
@@ -27,7 +27,7 @@ export class AgentOrchestratorService {
     private readonly langChainAgent: LangChainAgentService,
     private readonly ragService: RagService,
     private readonly langGraphWorkflow: LangGraphWorkflowService,
-  ) { }
+  ) {}
 
   /**
    * Execute an agentic task with autonomous tool use and planning
@@ -54,7 +54,7 @@ export class AgentOrchestratorService {
       // 2. Get tools for execution
       const tools = this.getToolsForExecution(options);
       this.logger.debug(
-        `Using ${tools.length} tools: ${tools.map((t: any) => t.name).join(', ')}`,
+        `Using ${tools.length} tools: ${tools.map((t: any) => t.name).join(", ")}`,
       );
 
       // 3. Get conversation history
@@ -65,7 +65,8 @@ export class AgentOrchestratorService {
 
       // 4. Optional: Enhance with RAG context
       let ragContext: string | null = null;
-      if (options.enableRAG !== false) { // Enable by default unless explicitly disabled
+      if (options.enableRAG !== false) {
+        // Enable by default unless explicitly disabled
         ragContext = await this.getRAGContext(prompt);
       }
 
@@ -73,7 +74,7 @@ export class AgentOrchestratorService {
       let result: AgentExecutionResult;
 
       if (options.useGraph) {
-        this.logger.debug('Using LangGraph workflow for execution');
+        this.logger.debug("Using LangGraph workflow for execution");
         const workflowResult = await this.langGraphWorkflow.executeWorkflow(
           prompt,
           llm,
@@ -91,7 +92,7 @@ export class AgentOrchestratorService {
           sessionId,
         };
       } else {
-        this.logger.debug('Using LangChain AgentExecutor for execution');
+        this.logger.debug("Using LangChain AgentExecutor for execution");
         let enhancedPrompt = prompt;
         if (ragContext) {
           enhancedPrompt = `Context from knowledge base:\n${ragContext}\n\nUser question: ${prompt}`;
@@ -114,8 +115,8 @@ export class AgentOrchestratorService {
       );
 
       // 6. Update memory
-      this.memoryService.addMessage(sessionId, 'human', prompt);
-      this.memoryService.addMessage(sessionId, 'ai', result.output);
+      this.memoryService.addMessage(sessionId, "human", prompt);
+      this.memoryService.addMessage(sessionId, "ai", result.output);
       this.memoryService.updateContext(sessionId, {
         lastExecutionTime: executionTime,
         lastToolsUsed: result.toolsUsed,
@@ -141,9 +142,11 @@ export class AgentOrchestratorService {
     sessionId: string,
     options: AgentExecutionOptions = {},
   ): AsyncGenerator<any, void, unknown> {
-    if (!prompt || typeof prompt !== 'string') {
-      this.logger.error(`Streaming agentic task failed: prompt is missing or not a string.`);
-      throw new Error('Missing required parameter: prompt');
+    if (!prompt || typeof prompt !== "string") {
+      this.logger.error(
+        `Streaming agentic task failed: prompt is missing or not a string.`,
+      );
+      throw new Error("Missing required parameter: prompt");
     }
     this.logger.log(
       `Streaming agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`,
@@ -173,7 +176,7 @@ export class AgentOrchestratorService {
         ragContext = await this.getRAGContext(prompt);
         if (ragContext) {
           yield {
-            type: 'context',
+            type: "context",
             data: { context: ragContext },
           };
         }
@@ -201,7 +204,7 @@ export class AgentOrchestratorService {
       );
 
       // 6. Update memory (final output will be sent by agent service)
-      this.memoryService.addMessage(sessionId, 'human', prompt);
+      this.memoryService.addMessage(sessionId, "human", prompt);
       this.memoryService.updateContext(sessionId, {
         lastExecutionTime: executionTime,
         lastModel: options.model || DEFAULT_AGENT_MODEL,
@@ -211,7 +214,7 @@ export class AgentOrchestratorService {
         `Agent streaming failed for session ${sessionId}: ${error.message}`,
       );
       yield {
-        type: 'error',
+        type: "error",
         data: { error: error.message },
       };
     }
@@ -242,7 +245,7 @@ export class AgentOrchestratorService {
       const messages = [
         ...history,
         {
-          role: 'user',
+          role: "user",
           content: prompt,
         },
       ];
@@ -250,8 +253,8 @@ export class AgentOrchestratorService {
       const result = await llm.invoke(messages as any);
 
       // Update memory
-      this.memoryService.addMessage(sessionId, 'human', prompt);
-      this.memoryService.addMessage(sessionId, 'ai', result.content as string);
+      this.memoryService.addMessage(sessionId, "human", prompt);
+      this.memoryService.addMessage(sessionId, "ai", result.content as string);
 
       return {
         output: result.content as string,
@@ -342,7 +345,7 @@ export class AgentOrchestratorService {
       messageCount: history.length,
       lastExecutionTime: context.lastExecutionTime || 0,
       lastToolsUsed: context.lastToolsUsed || [],
-      lastModel: context.lastModel || 'unknown',
+      lastModel: context.lastModel || "unknown",
     };
   }
 
@@ -350,11 +353,16 @@ export class AgentOrchestratorService {
    * Get RAG context for a query
    * Performs similarity search and returns relevant context
    */
-  private async getRAGContext(query: string, topK: number = 3): Promise<string | null> {
+  private async getRAGContext(
+    query: string,
+    topK: number = 3,
+  ): Promise<string | null> {
     try {
       const stats = this.ragService.getStats();
       if (stats.totalDocuments === 0) {
-        this.logger.debug('No documents in RAG store, skipping RAG enhancement');
+        this.logger.debug(
+          "No documents in RAG store, skipping RAG enhancement",
+        );
         return null;
       }
 
@@ -367,9 +375,11 @@ export class AgentOrchestratorService {
       // Format context from retrieved documents
       const context = results
         .map((doc, i) => `[${i + 1}] ${doc.pageContent}`)
-        .join('\n\n');
+        .join("\n\n");
 
-      this.logger.debug(`Retrieved ${results.length} relevant documents for RAG context`);
+      this.logger.debug(
+        `Retrieved ${results.length} relevant documents for RAG context`,
+      );
       return context;
     } catch (error: any) {
       this.logger.error(`Failed to get RAG context: ${error.message}`);

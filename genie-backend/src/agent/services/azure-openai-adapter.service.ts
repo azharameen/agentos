@@ -1,10 +1,10 @@
-import { Injectable, Logger } from '@nestjs/common';
-import { AzureChatOpenAI } from '@langchain/openai';
-import { config } from 'dotenv';
-import { ModelConfig } from '../../shared/agent-models.interface';
-import { ModelType } from '../../shared/agent-models.enum';
-import { AGENT_MODELS } from '../../shared/agent-models.constants';
-import { DEFAULT_AGENT_MODEL } from '../../shared/agent-models.constants';
+import { Injectable, Logger } from "@nestjs/common";
+import { AzureChatOpenAI } from "@langchain/openai";
+import { config } from "dotenv";
+import { ModelConfig } from "../../shared/agent-models.interface";
+import { ModelType } from "../../shared/agent-models.enum";
+import { AGENT_MODELS } from "../../shared/agent-models.constants";
+import { DEFAULT_AGENT_MODEL } from "../../shared/agent-models.constants";
 
 config();
 
@@ -28,7 +28,7 @@ export class AzureOpenAIAdapter {
    */
   getLLM(modelName?: string, temperature: number = 0.7): AzureChatOpenAI {
     if (!this.endpoint || !this.apiKey) {
-      throw new Error('Azure OpenAI endpoint or API key not configured');
+      throw new Error("Azure OpenAI endpoint or API key not configured");
     }
 
     // Default to DEFAULT_AGENT_MODEL if no model specified
@@ -86,10 +86,12 @@ export class AzureOpenAIAdapter {
     try {
       const url = new URL(endpoint);
       // Extract the first part of the hostname (e.g., "my-instance" from "my-instance.openai.azure.com")
-      return url.hostname.split('.')[0];
+      return url.hostname.split(".")[0];
     } catch {
-      this.logger.error(`Failed to extract instance name from endpoint: ${endpoint}`);
-      throw new Error('Invalid Azure OpenAI endpoint format');
+      this.logger.error(
+        `Failed to extract instance name from endpoint: ${endpoint}`,
+      );
+      throw new Error("Invalid Azure OpenAI endpoint format");
     }
   }
 }
