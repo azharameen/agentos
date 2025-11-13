@@ -5,6 +5,9 @@ import { AgentMemoryService } from "./agent-memory.service";
 import { LangChainAgentService } from "./langchain-agent.service";
 import { RagService } from "./rag.service";
 import { LangGraphWorkflowService } from "./langgraph-workflow.service";
+import { TracingService } from "./tracing.service";
+import { TokenUsageService } from "./token-usage.service";
+import { ContentSafetyService } from "./content-safety.service";
 import { DEFAULT_AGENT_MODEL } from "../../shared/agent-models.constants";
 import {
   AgentExecutionResult,
@@ -27,6 +30,9 @@ export class AgentOrchestratorService {
     private readonly langChainAgent: LangChainAgentService,
     private readonly ragService: RagService,
     private readonly langGraphWorkflow: LangGraphWorkflowService,
+    private readonly tracing: TracingService,
+    private readonly tokenUsage: TokenUsageService,
+    private readonly contentSafety: ContentSafetyService,
   ) {}
 
   /**
@@ -38,14 +44,46 @@ export class AgentOrchestratorService {
     sessionId: string,
     options: AgentExecutionOptions = {},
   ): Promise<AgentExecutionResult> {
+    // Start distributed trace
+    const traceId = this.tracing.startTrace("agent_execution", {
+      sessionId,
+      model: options.model || DEFAULT_AGENT_MODEL,
+      useGraph: options.useGraph || false,
+      enableRAG: options.enableRAG !== false,
+    });
+
     this.logger.log(
-      `Executing agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`,
+      `Executing agentic task for session ${sessionId}: ${prompt.substring(0, 100)}... [trace: ${traceId}]`,
     );
 
     try {
       const startTime = Date.now();
 
-      // 1. Get LLM
+      // 1. Content Safety: Validate input prompt
+      if (this.contentSafety.isEnabled()) {
+        const safetyResult = await this.contentSafety.validatePrompt(prompt);
+        if (!safetyResult.safe) {
+          const violations = safetyResult.violations
+            .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
+            .join(", ");
+          this.logger.warn(
+            `Content safety violation in prompt for session ${sessionId}: ${violations}`,
+          );
+          this.tracing.endTrace(traceId, {
+            status: "failed",
+            reason: "content_safety_violation",
+            violations,
+          });
+          throw new Error(
+            `Content policy violation detected: ${violations}. Please modify your request.`,
+          );
+        }
+        this.logger.debug(
+          `Prompt passed content safety check (${safetyResult.analysisTime}ms)`,
+        );
+      }
+
+      // 2. Get LLM
       const llm = this.azureAdapter.getLLM(
         options.model,
         options.temperature || 0.7,
@@ -114,7 +152,42 @@ export class AgentOrchestratorService {
         `Agent execution completed in ${executionTime}ms for session ${sessionId}`,
       );
 
-      // 6. Update memory
+      // 6. Content Safety: Validate output response
+      if (this.contentSafety.isEnabled()) {
+        const safetyResult = await this.contentSafety.validateResponse(
+          result.output,
+        );
+        if (!safetyResult.safe) {
+          const violations = safetyResult.violations
+            .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
+            .join(", ");
+          this.logger.warn(
+            `Content safety violation in response for session ${sessionId}: ${violations}`,
+          );
+          this.tracing.endTrace(traceId, {
+            status: "failed",
+            reason: "content_safety_violation_output",
+            violations,
+          });
+          // Return sanitized response
+          result.output =
+            "I'm sorry, but I cannot provide that response as it violates content safety policies. Please rephrase your request.";
+        } else {
+          this.logger.debug(
+            `Response passed content safety check (${safetyResult.analysisTime}ms)`,
+          );
+        }
+      }
+
+      // End trace with success metrics
+      this.tracing.endTrace(traceId, {
+        success: true,
+        executionTimeMs: executionTime,
+        toolsUsed: result.toolsUsed,
+        outputLength: result.output.length,
+      });
+
+      // 7. Update memory
       this.memoryService.addMessage(sessionId, "human", prompt);
       this.memoryService.addMessage(sessionId, "ai", result.output);
       this.memoryService.updateContext(sessionId, {
@@ -125,6 +198,12 @@ export class AgentOrchestratorService {
 
       return result;
     } catch (error: any) {
+      // End trace with error
+      this.tracing.endTrace(traceId, {
+        success: false,
+        error: error.message,
+      });
+
       this.logger.error(
         `Agent execution failed for session ${sessionId}: ${error.message}`,
       );
@@ -188,7 +267,7 @@ export class AgentOrchestratorService {
         enhancedPrompt = `Context from knowledge base:\n${ragContext}\n\nUser question: ${prompt}`;
       }
 
-      // Stream from LangChain agent
+      // Stream from LangChain agent with cancellation support
       yield* this.langChainAgent.executeStream(
         enhancedPrompt,
         llm,
@@ -196,6 +275,7 @@ export class AgentOrchestratorService {
         conversationHistory,
         options.maxIterations || 10,
         sessionId,
+        options.signal,
       );
 
       const executionTime = Date.now() - startTime;

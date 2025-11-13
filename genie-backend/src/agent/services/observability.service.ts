@@ -6,56 +6,29 @@ import { ChainValues } from "@langchain/core/utils/types";
 
 /**
  * Observability Service
- * Provides tracing, monitoring, and streaming capabilities for LangChain/LangGraph agents
+ * Provides LOCAL tracing, monitoring, and streaming capabilities for LangChain/LangGraph agents
+ *
+ * Privacy Guarantee:
+ * - NO external data sharing (LangSmith removed)
+ * - All tracing stays on your infrastructure
+ * - Logs via Pino to local files/stdout
  *
  * Features:
- * - LangSmith automatic tracing (via environment variables)
- * - Custom callback handlers for streaming
+ * - Local-only callback handlers for streaming
  * - Token usage tracking
  * - Performance metrics collection
  * - Error tracking and logging
- *
- * LangSmith Setup:
- * Set these environment variables to enable LangSmith tracing:
- * - LANGCHAIN_TRACING_V2=true
- * - LANGCHAIN_API_KEY=<your-langsmith-api-key>
- * - LANGCHAIN_PROJECT=<your-project-name> (optional, defaults to "default")
- * - LANGCHAIN_ENDPOINT=https://api.smith.langchain.com (optional)
+ * - Structured logs for Prometheus/Grafana consumption
  */
 @Injectable()
 export class ObservabilityService implements OnModuleInit {
   private readonly logger = new Logger(ObservabilityService.name);
-  private tracingEnabled = false;
-  private projectName = "default";
+  private readonly tracingEnabled = true; // Always enabled (local-only)
+  private readonly projectName = "genie-backend";
 
   onModuleInit() {
-    this.initializeTracing();
-  }
-
-  /**
-   * Initialize LangSmith tracing
-   */
-  private initializeTracing(): void {
-    this.tracingEnabled = process.env.LANGCHAIN_TRACING_V2 === "true";
-    this.projectName = process.env.LANGCHAIN_PROJECT || "default";
-
-    if (this.tracingEnabled) {
-      const apiKey = process.env.LANGCHAIN_API_KEY;
-      if (!apiKey) {
-        this.logger.warn(
-          "LANGCHAIN_TRACING_V2 is enabled but LANGCHAIN_API_KEY is not set. Tracing will not work.",
-        );
-        this.tracingEnabled = false;
-      } else {
-        this.logger.log(
-          `LangSmith tracing enabled for project: ${this.projectName}`,
-        );
-      }
-    } else {
-      this.logger.log(
-        "LangSmith tracing is disabled. Set LANGCHAIN_TRACING_V2=true to enable.",
-      );
-    }
+    this.logger.log("Local observability is ENABLED (no cloud dependencies)");
+    this.logger.log("All metrics and traces are logged locally");
   }
 
   /**

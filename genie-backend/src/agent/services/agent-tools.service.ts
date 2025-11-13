@@ -3,6 +3,12 @@ import { Injectable, Logger, OnModuleInit } from "@nestjs/common";
 import { ToolRegistryService } from "./tool-registry.service";
 import { ToolCategory } from "../../shared/tool.constants";
 import { z } from "zod";
+import * as fs from "fs/promises";
+import * as path from "path";
+import { exec } from "child_process";
+import { promisify } from "util";
+
+const execAsync = promisify(exec);
 
 /**
  * AgentToolsService
@@ -16,7 +22,7 @@ import { z } from "zod";
 export class AgentToolsService implements OnModuleInit {
   private readonly logger = new Logger(AgentToolsService.name);
 
-  constructor(private readonly toolRegistry: ToolRegistryService) {}
+  constructor(private readonly toolRegistry: ToolRegistryService) { }
 
   /**
    * Initialize all tools on module start
@@ -28,6 +34,8 @@ export class AgentToolsService implements OnModuleInit {
     // this.registerWebTools();
     this.registerStringTools();
     this.registerDateTimeTools();
+    this.registerFilesystemTools();
+    this.registerGitTools();
     this.logger.log("Agent tools initialized successfully");
   }
 
@@ -264,6 +272,229 @@ export class AgentToolsService implements OnModuleInit {
         }
       },
       ToolCategory.DATETIME,
+    );
+  }
+
+  /**
+   * Register filesystem tools with sandboxing
+   */
+  private registerFilesystemTools() {
+    const basePath = process.cwd();
+
+    this.toolRegistry.registerTool(
+      "filesystem_read",
+      "Reads the contents of a file within the project directory.",
+      z.object({
+        filePath: z
+          .string()
+          .describe("The relative file path within the project"),
+      }),
+      async ({ filePath }: { filePath: string }) => {
+        try {
+          const fullPath = path.resolve(basePath, filePath);
+
+          // Security checks
+          if (filePath.includes("..")) {
+            return "Error: Directory traversal detected";
+          }
+          if (!fullPath.startsWith(basePath)) {
+            return "Error: Path outside project directory";
+          }
+
+          const content = await fs.readFile(fullPath, "utf-8");
+          return `File: ${filePath}\n\n${content}`;
+        } catch (error: any) {
+          return `Error reading file: ${error.message}`;
+        }
+      },
+      ToolCategory.FILESYSTEM,
+      true,
+      {
+        timeout: 5000,
+        maxRetries: 1,
+      },
+    );
+
+    this.toolRegistry.registerTool(
+      "filesystem_list",
+      "Lists files and directories within the project directory.",
+      z.object({
+        dirPath: z
+          .string()
+          .describe("The relative directory path (default: '.')"),
+      }),
+      async ({ dirPath }: { dirPath: string }) => {
+        try {
+          const fullPath = path.resolve(basePath, dirPath || ".");
+
+          // Security checks
+          if (dirPath.includes("..")) {
+            return "Error: Directory traversal detected";
+          }
+          if (!fullPath.startsWith(basePath)) {
+            return "Error: Path outside project directory";
+          }
+
+          const files = await fs.readdir(fullPath);
+          return `Contents of ${dirPath || "."}:\n${files.join("\n")}`;
+        } catch (error: any) {
+          return `Error listing directory: ${error.message}`;
+        }
+      },
+      ToolCategory.FILESYSTEM,
+      true,
+      {
+        timeout: 5000,
+        maxRetries: 1,
+      },
+    );
+
+    this.toolRegistry.registerTool(
+      "filesystem_exists",
+      "Checks if a file or directory exists within the project.",
+      z.object({
+        filePath: z.string().describe("The relative path to check"),
+      }),
+      async ({ filePath }: { filePath: string }) => {
+        try {
+          const fullPath = path.resolve(basePath, filePath);
+
+          // Security checks
+          if (filePath.includes("..")) {
+            return "Error: Directory traversal detected";
+          }
+          if (!fullPath.startsWith(basePath)) {
+            return "Error: Path outside project directory";
+          }
+
+          await fs.access(fullPath);
+          return `${filePath} exists`;
+        } catch {
+          return `${filePath} does not exist`;
+        }
+      },
+      ToolCategory.FILESYSTEM,
+      true,
+      {
+        timeout: 3000,
+        maxRetries: 1,
+      },
+    );
+  }
+
+  /**
+   * Register git tools with command validation
+   */
+  private registerGitTools() {
+    const sanitizeArgs = (args: string): string => {
+      if (!args) return "";
+      return args
+        .replaceAll(/[;&|`$(){}[\]<>]/g, "")
+        .replaceAll(/\\/g, "")
+        .replaceAll(/\n/g, " ")
+        .trim();
+    };
+
+    const allowedCommands = [
+      "status",
+      "log",
+      "diff",
+      "branch",
+      "show",
+      "remote",
+    ];
+
+    this.toolRegistry.registerTool(
+      "git_status",
+      "Gets the current git repository status.",
+      z.object({}),
+      async () => {
+        try {
+          const { stdout } = await execAsync("git status", {
+            cwd: process.cwd(),
+            timeout: 10000,
+          });
+          return `Git status:\n${stdout}`;
+        } catch (error: any) {
+          return `Error: ${error.message}`;
+        }
+      },
+      ToolCategory.GIT,
+      true,
+      {
+        timeout: 10000,
+        maxRetries: 1,
+      },
+    );
+
+    this.toolRegistry.registerTool(
+      "git_log",
+      "Shows git commit history.",
+      z.object({
+        limit: z
+          .number()
+          .optional()
+          .describe("Number of commits to show (default: 10)"),
+      }),
+      async ({ limit = 10 }: { limit?: number }) => {
+        try {
+          const { stdout } = await execAsync(
+            `git log --oneline -${Math.min(limit, 50)}`,
+            {
+              cwd: process.cwd(),
+              timeout: 10000,
+            },
+          );
+          return `Git log:\n${stdout}`;
+        } catch (error: any) {
+          return `Error: ${error.message}`;
+        }
+      },
+      ToolCategory.GIT,
+      true,
+      {
+        timeout: 10000,
+        maxRetries: 1,
+      },
+    );
+
+    this.toolRegistry.registerTool(
+      "git_diff",
+      "Shows git diff for uncommitted changes.",
+      z.object({
+        file: z
+          .string()
+          .optional()
+          .describe("Specific file to diff (optional)"),
+      }),
+      async ({ file }: { file?: string }) => {
+        try {
+          const sanitizedFile = file ? sanitizeArgs(file) : "";
+          const command = sanitizedFile
+            ? `git diff ${sanitizedFile}`
+            : "git diff";
+
+          const { stdout } = await execAsync(command, {
+            cwd: process.cwd(),
+            timeout: 10000,
+            maxBuffer: 1024 * 1024,
+          });
+
+          if (!stdout) {
+            return "No changes detected";
+          }
+
+          return `Git diff:\n${stdout}`;
+        } catch (error: any) {
+          return `Error: ${error.message}`;
+        }
+      },
+      ToolCategory.GIT,
+      true,
+      {
+        timeout: 10000,
+        maxRetries: 1,
+      },
     );
   }
 }

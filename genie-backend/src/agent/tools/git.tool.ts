@@ -36,6 +36,25 @@ export const createGitTool = (): DynamicStructuredTool => {
     return sanitized;
   };
 
+  /**
+   * Validates that git command is safe and allowed
+   */
+  const validateCommand = (command: string): boolean => {
+    const allowedCommands = [
+      "status",
+      "log",
+      "diff",
+      "branch",
+      "add",
+      "commit",
+      "push",
+      "pull",
+      "checkout",
+      "show",
+    ];
+    return allowedCommands.includes(command);
+  };
+
   return new DynamicStructuredTool({
     name: "git",
     description:
@@ -68,6 +87,11 @@ export const createGitTool = (): DynamicStructuredTool => {
       args?: string;
     }): Promise<string> => {
       try {
+        // Validate command is allowed
+        if (!validateCommand(command)) {
+          return `Error: Git command '${command}' is not allowed. Allowed commands: status, log, diff, branch, add, commit, push, pull, checkout, show`;
+        }
+
         // Sanitize arguments to prevent command injection
         const sanitizedArgs = sanitizeArgs(args);
 

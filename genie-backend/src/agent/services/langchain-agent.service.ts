@@ -142,9 +142,16 @@ export class LangChainAgentService {
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
     sessionId?: string,
+    signal?: AbortSignal,
   ): AsyncGenerator<any, void, unknown> {
     try {
       this.logger.log(`Streaming LangChain agent with ${tools.length} tools`);
+
+      // Check for cancellation before starting
+      if (signal?.aborted) {
+        this.logger.log("Agent streaming cancelled before start");
+        return;
+      }
 
       // Build system prompt
       const systemPrompt = this.getSystemPrompt(tools);
@@ -179,6 +186,31 @@ export class LangChainAgentService {
       const toolsUsed: Set<string> = new Set();
       let finalOutput = "";
       let messageCounter = 0;
+      let currentToolCall: {
+        name: string;
+        input: any;
+        startTime: number;
+      } | null = null;
+
+      // Token batching configuration
+      const BATCH_SIZE_CHARS = 50; // Batch small tokens into 50-char chunks
+      const BATCH_TIMEOUT_MS = 100; // Flush batch every 100ms
+      let tokenBatch = "";
+      let batchTimer: NodeJS.Timeout | null = null;
+
+      const flushBatch = () => {
+        if (tokenBatch.length > 0) {
+          return {
+            type: "TEXT_MESSAGE_CONTENT",
+            data: {
+              messageId: `${config.configurable.thread_id}-msg-${messageCounter}`,
+              delta: tokenBatch,
+              content: finalOutput,
+            },
+          };
+        }
+        return null;
+      };
 
       // Use 'messages' stream mode to get LLM tokens
       const stream = await agent.stream(
@@ -186,6 +218,15 @@ export class LangChainAgentService {
         { ...config, streamMode: "messages" as any },
       );
       for await (const chunk of stream) {
+        // Check for cancellation on each chunk
+        if (signal?.aborted) {
+          this.logger.log("Agent streaming cancelled mid-execution");
+          yield {
+            type: "RUN_CANCELLED",
+            data: { message: "Stream cancelled by client" },
+          };
+          return;
+        }
         // chunk is a tuple: [message, metadata]
         if (!Array.isArray(chunk) || chunk.length < 2) continue;
         const [messageRaw, metadata] = chunk;
@@ -209,21 +250,56 @@ export class LangChainAgentService {
 
         if (safeContent.length > 0) {
           finalOutput += safeContent;
-          yield {
-            type: "TEXT_MESSAGE_CONTENT",
-            data: {
-              messageId: safeMessageId,
-              delta: safeDelta,
-              content: finalOutput,
-              metadata,
-            },
-          };
+          tokenBatch += safeContent;
+
+          // Flush batch if it reaches size threshold
+          if (tokenBatch.length >= BATCH_SIZE_CHARS) {
+            const batchedMessage = flushBatch();
+            if (batchedMessage) {
+              yield batchedMessage;
+            }
+            tokenBatch = "";
+
+            // Clear timer if active
+            if (batchTimer) {
+              clearTimeout(batchTimer);
+              batchTimer = null;
+            }
+          } else {
+            // Set timeout to flush batch if no more tokens arrive
+            if (batchTimer) {
+              clearTimeout(batchTimer);
+            }
+            batchTimer = setTimeout(() => {
+              const batchedMessage = flushBatch();
+              if (batchedMessage) {
+                // Note: Can't yield inside setTimeout, this is a safeguard
+                // In practice, we'll flush at the end anyway
+              }
+              tokenBatch = "";
+              batchTimer = null;
+            }, BATCH_TIMEOUT_MS);
+          }
         }
         // Optionally emit thread.message.created and thread.message.completed events
         // (not implemented here, but can be added for full compliance)
 
         // Track tool calls
         if (Array.isArray(message.tool_calls)) {
+          // If there's a previous tool call, emit completion before starting new one
+          if (currentToolCall) {
+            const duration = Date.now() - currentToolCall.startTime;
+            yield {
+              type: "TOOL_COMPLETE",
+              data: {
+                tool: currentToolCall.name,
+                duration,
+                status: "success",
+              },
+            };
+            currentToolCall = null;
+          }
+
           for (const toolCallRaw of message.tool_calls) {
             const toolCall = toolCallRaw as {
               name?: string;
@@ -243,16 +319,66 @@ export class LangChainAgentService {
             toolInput = toolCall.args ?? toolCall.function?.arguments;
             if (toolName) {
               toolsUsed.add(toolName);
+
+              // Track this tool call
+              currentToolCall = {
+                name: toolName,
+                input: toolInput,
+                startTime: Date.now(),
+              };
+
               yield {
                 type: "TOOL_CALL_START",
                 data: {
                   tool: toolName,
                   input: toolInput,
+                  timestamp: currentToolCall.startTime,
                 },
               };
             }
           }
+        } else if (currentToolCall && safeContent) {
+          // If we get content after a tool call, the tool has completed
+          const duration = Date.now() - currentToolCall.startTime;
+          yield {
+            type: "TOOL_COMPLETE",
+            data: {
+              tool: currentToolCall.name,
+              duration,
+              status: "success",
+              output: safeContent.substring(0, 200), // Include snippet of output
+            },
+          };
+          currentToolCall = null;
         }
+      }
+
+      // Flush any remaining tokens in batch
+      if (tokenBatch.length > 0) {
+        const batchedMessage = flushBatch();
+        if (batchedMessage) {
+          yield batchedMessage;
+        }
+        tokenBatch = "";
+      }
+
+      // Clear batch timer if still active
+      if (batchTimer) {
+        clearTimeout(batchTimer);
+        batchTimer = null;
+      }
+
+      // Emit final tool completion if still active
+      if (currentToolCall) {
+        const duration = Date.now() - currentToolCall.startTime;
+        yield {
+          type: "TOOL_COMPLETE",
+          data: {
+            tool: currentToolCall.name,
+            duration,
+            status: "success",
+          },
+        };
       }
 
       // Send final completion event

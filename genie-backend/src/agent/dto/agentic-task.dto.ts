@@ -7,11 +7,78 @@ import {
   Min,
   Max,
   IsBoolean,
+  IsEnum,
+  ValidateNested,
 } from "class-validator";
+import { Type } from "class-transformer";
 import { AGENT_MODELS } from "../../shared/agent-models.constants";
 
 /**
- * DTO for agentic task execution
+ * Agent role configuration for multi-agent execution
+ */
+export class AgentRoleDto {
+  @ApiProperty({
+    description: "Unique identifier for the agent",
+    example: "math-expert",
+  })
+  @IsString()
+  id: string;
+
+  @ApiProperty({
+    description: "Display name for the agent",
+    example: "Math Expert",
+  })
+  @IsString()
+  name: string;
+
+  @ApiProperty({
+    description: "Description of the agent's capabilities",
+    example: "Handles all mathematical calculations and analysis",
+  })
+  @IsString()
+  description: string;
+
+  @ApiPropertyOptional({
+    description: "Tool categories this agent can use",
+    example: ["math", "calculator"],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  toolCategories?: string[];
+
+  @ApiPropertyOptional({
+    description: "Specific tools this agent can use",
+    example: ["calculator", "scientific_calculator"],
+    type: [String],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  specificTools?: string[];
+
+  @ApiPropertyOptional({
+    description: "Custom system prompt for this agent",
+    example: "You are a math expert. Focus on accuracy and show your work.",
+  })
+  @IsOptional()
+  @IsString()
+  systemPrompt?: string;
+}
+
+/**
+ * Collaboration mode for multi-agent execution
+ */
+export enum CoordinationMode {
+  SEQUENTIAL = "sequential",
+  PARALLEL = "parallel",
+  DEBATE = "debate",
+  ROUTER = "router",
+}
+
+/**
+ * DTO for unified agentic task execution (single-agent, multi-agent, streaming)
  */
 export class AgenticTaskDto {
   @ApiProperty({
@@ -111,6 +178,77 @@ export class AgenticTaskDto {
   @IsOptional()
   @IsBoolean()
   enableRAG?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Enable streaming mode (SSE) for real-time updates. If true, returns Observable<MessageEvent>; if false, returns final result.",
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  stream?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "Enable multi-agent collaboration mode. If true, 'agents' and 'mode' parameters are required.",
+    example: false,
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  multiAgent?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      "List of agent roles for multi-agent execution (required if multiAgent is true)",
+    type: [AgentRoleDto],
+    example: [
+      {
+        id: "math-expert",
+        name: "Math Expert",
+        description: "Handles mathematical calculations",
+        toolCategories: ["math"],
+        specificTools: ["calculator"],
+        systemPrompt: "You are a math expert.",
+      },
+      {
+        id: "science-expert",
+        name: "Science Expert",
+        description: "Handles science questions",
+        toolCategories: ["science"],
+        specificTools: ["encyclopedia"],
+        systemPrompt: "You are a science expert.",
+      },
+    ],
+  })
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => AgentRoleDto)
+  agents?: AgentRoleDto[];
+
+  @ApiPropertyOptional({
+    description:
+      "Collaboration mode for multi-agent execution (required if multiAgent is true)",
+    enum: CoordinationMode,
+    example: CoordinationMode.PARALLEL,
+  })
+  @IsOptional()
+  @IsEnum(CoordinationMode)
+  mode?: CoordinationMode;
+
+  @ApiPropertyOptional({
+    description: "Maximum rounds of collaboration for multi-agent execution",
+    example: 3,
+    minimum: 1,
+    maximum: 10,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(1)
+  @Max(10)
+  maxRounds?: number;
 }
 
 /**

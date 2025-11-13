@@ -191,7 +191,8 @@ export class RagService {
   }
 
   /**
-   * Search with scores
+   * Search with scores and provenance metadata
+   * Returns documents with enhanced metadata for traceability
    */
   async similaritySearchWithScore(
     query: string,
@@ -205,13 +206,23 @@ export class RagService {
         return hits.map(
           (h) =>
             [
-              new Document({ pageContent: h.content, metadata: h.metadata }),
+              new Document({
+                pageContent: h.content,
+                metadata: {
+                  ...h.metadata,
+                  // RAG Provenance metadata
+                  _rag_document_id: h.id,
+                  _rag_similarity_score: h.score,
+                  _rag_retrieved_at: new Date().toISOString(),
+                  _rag_retrieval_query: query.substring(0, 100),
+                },
+              }),
               h.score,
             ] as [Document, number],
         );
       }
 
-      // Calculate cosine similarity for each document
+      // Calculate cosine similarity for each document (in-memory fallback)
       const results = this.vectorStore
         .map((entry) => ({
           entry,
@@ -224,14 +235,86 @@ export class RagService {
             [
               new Document({
                 pageContent: entry.content,
-                metadata: entry.metadata,
+                metadata: {
+                  ...entry.metadata,
+                  // RAG Provenance metadata
+                  _rag_document_id: entry.id,
+                  _rag_similarity_score: score,
+                  _rag_retrieved_at: new Date().toISOString(),
+                  _rag_retrieval_query: query.substring(0, 100),
+                },
               }),
               score,
             ] as [Document, number],
         );
 
-      this.logger.log(`Found ${results.length} documents with scores`);
+      this.logger.log(
+        `Found ${results.length} similar documents with provenance for query: "${query.substring(0, 50)}..."`,
+      );
       return results;
+    } catch (error: any) {
+      this.logger.error(
+        `Similarity search with score failed: ${error.message}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Search with full provenance details (enhanced version)
+   * Returns documents with extended metadata including source tracking
+   */
+  async similaritySearchWithProvenance(
+    query: string,
+    k: number = 5,
+    options?: {
+      includeScores?: boolean;
+      includeEmbeddings?: boolean;
+      minScore?: number;
+    },
+  ): Promise<
+    Array<{
+      document: Document;
+      score: number;
+      provenance: {
+        documentId: string;
+        retrievedAt: string;
+        query: string;
+        rank: number;
+        chunkIndex?: number;
+        source?: string;
+        timestamp?: string;
+      };
+    }>
+  > {
+    try {
+      const resultsWithScore = await this.similaritySearchWithScore(query, k);
+
+      // Filter by minimum score if specified
+      const filtered = options?.minScore
+        ? resultsWithScore.filter(([, score]) => score >= options.minScore!)
+        : resultsWithScore;
+
+      // Map to provenance format
+      const withProvenance = filtered.map(([doc, score], index) => ({
+        document: doc,
+        score,
+        provenance: {
+          documentId: doc.metadata._rag_document_id || "unknown",
+          retrievedAt:
+            doc.metadata._rag_retrieved_at || new Date().toISOString(),
+          query: doc.metadata._rag_retrieval_query || query,
+          rank: index + 1,
+          chunkIndex: doc.metadata.chunk_index,
+          source: doc.metadata.source,
+          timestamp: doc.metadata.timestamp,
+        },
+      }));
+
+      this.logger.log(
+        `Found ${withProvenance.length} documents with full provenance for query: "${query.substring(0, 50)}..."`,
+      );
+      return withProvenance;
     } catch (error: any) {
       this.logger.error(
         `Similarity search with score failed: ${error.message}`,

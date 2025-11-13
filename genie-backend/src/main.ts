@@ -15,10 +15,21 @@ async function bootstrap() {
   });
 
   // Enable CORS (environment-based configuration)
-  const corsOrigins = process.env.CORS_ORIGINS?.split(",") || "*";
+  let corsOrigins: string | string[] = "*";
+  if (
+    typeof process.env.CORS_ORIGINS === "string" &&
+    process.env.CORS_ORIGINS !== "*"
+  ) {
+    const splitOrigins = process.env.CORS_ORIGINS.split(",")
+      .map((o) => o.trim())
+      .filter(Boolean);
+    corsOrigins = splitOrigins.length === 1 ? splitOrigins[0] : splitOrigins;
+  }
   app.enableCors({
     origin: corsOrigins,
     credentials: true,
+    methods: ["GET", "HEAD", "PUT", "PATCH", "POST", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
   });
 
   // Enable global validation

@@ -4,23 +4,25 @@ import {
   InternalServerErrorException,
   BadRequestException,
 } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AgentQueryDto } from "./agent-query.dto";
-import { config } from "dotenv";
 import { AzureOpenAI } from "openai";
 import axios from "axios";
 import { AGENT_MODELS } from "../shared/agent-models.constants";
 import { ModelConfig } from "../shared/agent-models.interface";
 import { ModelType } from "../shared/agent-models.enum";
 
-config();
-
 @Injectable()
 export class AgentService {
   private readonly logger = new Logger(AgentService.name);
   private readonly models: ModelConfig[] = AGENT_MODELS;
-  private readonly endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  private readonly apiKey = process.env.AZURE_OPENAI_API_KEY;
-  // No longer need a global apiVersion or getDeployment; use model object directly
+  private readonly endpoint: string;
+  private readonly apiKey: string;
+
+  constructor(private readonly configService: ConfigService) {
+    this.endpoint = this.configService.get<string>("app.azure.endpoint", "");
+    this.apiKey = this.configService.get<string>("app.azure.apiKey", "");
+  }
 
   async queryAgent(
     dto: AgentQueryDto,
@@ -58,6 +60,8 @@ export class AgentService {
     dto: AgentQueryDto,
     modelObj: any,
   ): Promise<{ answer: string; model: string; raw: any }> {
+    // Note: This method still creates per-call clients until we inject AZURE_OPENAI_CLIENT
+    // For now, keeping existing behavior but recommend migrating to provider injection
     const client = new AzureOpenAI({
       endpoint: this.endpoint,
       apiKey: this.apiKey,

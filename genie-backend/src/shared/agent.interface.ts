@@ -32,4 +32,5 @@ export interface AgentExecutionOptions {
   specificTools?: string[];
   useGraph?: boolean; // Use LangGraph workflow instead of LangChain agent
   enableRAG?: boolean; // Enable RAG context retrieval
+  signal?: AbortSignal; // AbortSignal for cancellation support
 }

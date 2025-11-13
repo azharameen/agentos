@@ -1,12 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { ConfigService } from "@nestjs/config";
 import { AzureChatOpenAI } from "@langchain/openai";
-import { config } from "dotenv";
 import { ModelConfig } from "../../shared/agent-models.interface";
 import { ModelType } from "../../shared/agent-models.enum";
 import { AGENT_MODELS } from "../../shared/agent-models.constants";
 import { DEFAULT_AGENT_MODEL } from "../../shared/agent-models.constants";
-
-config();
 
 /**
  * AzureOpenAIAdapter
@@ -16,12 +14,14 @@ config();
 @Injectable()
 export class AzureOpenAIAdapter {
   private readonly logger = new Logger(AzureOpenAIAdapter.name);
-  private readonly endpoint = process.env.AZURE_OPENAI_ENDPOINT;
-  private readonly apiKey = process.env.AZURE_OPENAI_API_KEY;
-
-  // Available models from agent.service.ts
-
+  private readonly endpoint: string;
+  private readonly apiKey: string;
   private readonly models: ModelConfig[] = AGENT_MODELS;
+
+  constructor(private readonly configService: ConfigService) {
+    this.endpoint = this.configService.get<string>("app.azure.endpoint", "");
+    this.apiKey = this.configService.get<string>("app.azure.apiKey", "");
+  }
 
   /**
    * Get a LangChain-compatible Azure OpenAI LLM instance

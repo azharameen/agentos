@@ -14,10 +14,17 @@ import { LangGraphWorkflowService } from "./services/langgraph-workflow.service"
 import { LangGraphPersistenceService } from "./services/langgraph-persistence.service";
 import { MemorySqliteService } from "./services/memory-sqlite.service";
 import { ObservabilityService } from "./services/observability.service";
+import { AzureOpenAIProvider } from "./providers/azure-openai.provider";
+import { TokenUsageService } from "./services/token-usage.service";
+import { TracingService } from "./services/tracing.service";
+import { ContentSafetyService } from "./services/content-safety.service";
+import { MultiAgentCoordinatorService } from "./services/multi-agent-coordinator.service";
+import { WorkflowVersioningService } from "./services/workflow-versioning.service";
 
 @Module({
   controllers: [AgentController],
   providers: [
+    AzureOpenAIProvider,
     AgentService,
     AgentMemoryService,
     ToolRegistryService,
@@ -32,6 +39,11 @@ import { ObservabilityService } from "./services/observability.service";
     LangGraphPersistenceService,
     MemorySqliteService,
     ObservabilityService,
+    TokenUsageService,
+    TracingService,
+    ContentSafetyService,
+    MultiAgentCoordinatorService,
+    WorkflowVersioningService,
   ],
   exports: [
     AgentOrchestratorService,

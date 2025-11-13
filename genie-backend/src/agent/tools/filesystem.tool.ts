@@ -39,8 +39,31 @@ export const createFilesystemTool = (): DynamicStructuredTool => {
         const basePath = process.cwd();
         const fullPath = path.resolve(basePath, filePath);
 
+        // Check for directory traversal attempts
+        if (filePath.includes("..")) {
+          return "Error: Directory traversal detected. Path cannot contain '..'";
+        }
+
+        // Ensure path is within project directory
         if (!fullPath.startsWith(basePath)) {
           return "Error: Access denied. Path must be within the project directory.";
+        }
+
+        // Additional security: Block access to sensitive directories
+        const sensitivePatterns = [
+          /node_modules/i,
+          /\.git/i,
+          /\.env/i,
+          /package\.json$/i,
+          /tsconfig\.json$/i,
+        ];
+
+        const isSensitive = sensitivePatterns.some((pattern) =>
+          pattern.test(fullPath),
+        );
+
+        if (isSensitive && (operation === "write" || operation === "delete")) {
+          return "Error: Access denied. Cannot modify sensitive files or directories.";
         }
 
         switch (operation) {

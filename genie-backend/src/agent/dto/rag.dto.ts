@@ -68,6 +68,18 @@ export class RagQueryDto {
   @IsOptional()
   @IsString()
   model?: string;
+
+  @ApiPropertyOptional({
+    description:
+      "Minimum similarity score threshold for retrieved documents (0.0-1.0, default: 0.7)",
+    example: 0.7,
+    minimum: 0,
+    maximum: 1,
+  })
+  @IsOptional()
+  @IsNumber()
+  @Min(0)
+  minScore?: number;
 }
 
 /**

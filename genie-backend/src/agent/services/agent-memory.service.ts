@@ -197,6 +197,354 @@ export class AgentMemoryService {
   }
 
   /**
+   * Get detailed memory analytics
+   */
+  getMemoryAnalytics(): {
+    sessions: {
+      total: number;
+      avgMessagesPerSession: number;
+      oldestSession: Date | null;
+      newestSession: Date | null;
+      totalMessages: number;
+    };
+    longTermMemory: {
+      total: number;
+      totalSizeBytes: number;
+      avgSizeBytes: number;
+      oldestEntry: Date | null;
+      newestEntry: Date | null;
+    };
+    systemHealth: {
+      staleSessions: number;
+      largeSessionsCount: number;
+      memoryPressure: "low" | "medium" | "high";
+    };
+  } {
+    let totalMessages = 0;
+    let oldestSessionDate: Date | null = null;
+    let newestSessionDate: Date | null = null;
+    let staleSessions = 0;
+    let largeSessionsCount = 0;
+    const now = new Date();
+    const LARGE_SESSION_THRESHOLD = 50; // messages
+
+    for (const session of this.sessionMemoryStore.values()) {
+      const messageCount = session.conversationHistory.length;
+      totalMessages += messageCount;
+
+      if (messageCount > LARGE_SESSION_THRESHOLD) {
+        largeSessionsCount++;
+      }
+
+      const timeSinceLastAccess =
+        now.getTime() - session.lastAccessedAt.getTime();
+      if (timeSinceLastAccess > this.SESSION_TIMEOUT_MS * 0.8) {
+        staleSessions++;
+      }
+
+      if (!oldestSessionDate || session.createdAt < oldestSessionDate) {
+        oldestSessionDate = session.createdAt;
+      }
+      if (!newestSessionDate || session.createdAt > newestSessionDate) {
+        newestSessionDate = session.createdAt;
+      }
+    }
+
+    let totalLTMSize = 0;
+    let oldestLTMDate: Date | null = null;
+    let newestLTMDate: Date | null = null;
+
+    for (const entry of this.longTermMemoryStore.values()) {
+      const entrySize =
+        entry.content.length + JSON.stringify(entry.metadata).length;
+      totalLTMSize += entrySize;
+
+      if (!oldestLTMDate || entry.createdAt < oldestLTMDate) {
+        oldestLTMDate = entry.createdAt;
+      }
+      if (!newestLTMDate || entry.createdAt > newestLTMDate) {
+        newestLTMDate = entry.createdAt;
+      }
+    }
+
+    const avgMessagesPerSession =
+      this.sessionMemoryStore.size > 0
+        ? totalMessages / this.sessionMemoryStore.size
+        : 0;
+    const avgLTMSize =
+      this.longTermMemoryStore.size > 0
+        ? totalLTMSize / this.longTermMemoryStore.size
+        : 0;
+
+    // Determine memory pressure
+    let memoryPressure: "low" | "medium" | "high" = "low";
+    if (
+      this.sessionMemoryStore.size > 100 ||
+      this.longTermMemoryStore.size > 1000
+    ) {
+      memoryPressure = "high";
+    } else if (
+      this.sessionMemoryStore.size > 50 ||
+      this.longTermMemoryStore.size > 500
+    ) {
+      memoryPressure = "medium";
+    }
+
+    return {
+      sessions: {
+        total: this.sessionMemoryStore.size,
+        avgMessagesPerSession: Math.round(avgMessagesPerSession * 100) / 100,
+        oldestSession: oldestSessionDate,
+        newestSession: newestSessionDate,
+        totalMessages,
+      },
+      longTermMemory: {
+        total: this.longTermMemoryStore.size,
+        totalSizeBytes: totalLTMSize,
+        avgSizeBytes: Math.round(avgLTMSize),
+        oldestEntry: oldestLTMDate,
+        newestEntry: newestLTMDate,
+      },
+      systemHealth: {
+        staleSessions,
+        largeSessionsCount,
+        memoryPressure,
+      },
+    };
+  }
+
+  /**
+   * Export memory to JSON (backup/transfer)
+   */
+  exportMemory(): {
+    exportedAt: Date;
+    sessions: Array<{
+      sessionId: string;
+      conversationHistory: Array<{
+        type: string;
+        content: string;
+        additionalKwargs?: Record<string, any>;
+      }>;
+      context: Record<string, any>;
+      createdAt: Date;
+      lastAccessedAt: Date;
+    }>;
+    longTermMemory: LongTermMemoryEntry[];
+  } {
+    const sessions = Array.from(this.sessionMemoryStore.values()).map(
+      (session) => ({
+        sessionId: session.sessionId,
+        conversationHistory: session.conversationHistory.map((msg) => ({
+          type: msg._getType(),
+          content:
+            typeof msg.content === "string"
+              ? msg.content
+              : JSON.stringify(msg.content),
+          additionalKwargs: (msg as any).additional_kwargs || {},
+        })),
+        context: session.context,
+        createdAt: session.createdAt,
+        lastAccessedAt: session.lastAccessedAt,
+      }),
+    );
+
+    const longTermMemory = Array.from(this.longTermMemoryStore.values());
+
+    this.logger.log(
+      `Exported ${sessions.length} sessions and ${longTermMemory.length} long-term memory entries`,
+    );
+
+    return {
+      exportedAt: new Date(),
+      sessions,
+      longTermMemory,
+    };
+  }
+
+  /**
+   * Import memory from JSON (restore from backup)
+   */
+  importMemory(data: {
+    sessions: Array<{
+      sessionId: string;
+      conversationHistory: Array<{
+        type: string;
+        content: string;
+        additionalKwargs?: Record<string, any>;
+      }>;
+      context: Record<string, any>;
+      createdAt: Date | string;
+      lastAccessedAt: Date | string;
+    }>;
+    longTermMemory: Array<{
+      id: string;
+      content: string;
+      metadata: Record<string, any>;
+      embedding?: number[];
+      createdAt: Date | string;
+    }>;
+  }): {
+    sessionsImported: number;
+    longTermMemoryImported: number;
+    errors: string[];
+  } {
+    const errors: string[] = [];
+    let sessionsImported = 0;
+    let longTermMemoryImported = 0;
+
+    // Import sessions
+    for (const sessionData of data.sessions || []) {
+      try {
+        const conversationHistory: BaseMessage[] = [];
+
+        for (const msgData of sessionData.conversationHistory) {
+          if (msgData.type === "human") {
+            conversationHistory.push(new HumanMessage(msgData.content));
+          } else if (msgData.type === "ai") {
+            conversationHistory.push(new AIMessage(msgData.content));
+          }
+        }
+
+        const session: SessionMemory = {
+          sessionId: sessionData.sessionId,
+          conversationHistory,
+          context: sessionData.context || {},
+          createdAt: new Date(sessionData.createdAt),
+          lastAccessedAt: new Date(sessionData.lastAccessedAt),
+        };
+
+        this.sessionMemoryStore.set(sessionData.sessionId, session);
+        sessionsImported++;
+      } catch (error) {
+        errors.push(
+          `Failed to import session ${sessionData.sessionId}: ${error.message}`,
+        );
+      }
+    }
+
+    // Import long-term memory
+    for (const entryData of data.longTermMemory || []) {
+      try {
+        const entry: LongTermMemoryEntry = {
+          id: entryData.id,
+          content: entryData.content,
+          metadata: entryData.metadata || {},
+          embedding: entryData.embedding,
+          createdAt: new Date(entryData.createdAt),
+        };
+
+        this.longTermMemoryStore.set(entryData.id, entry);
+        longTermMemoryImported++;
+      } catch (error) {
+        errors.push(
+          `Failed to import long-term memory ${entryData.id}: ${error.message}`,
+        );
+      }
+    }
+
+    this.logger.log(
+      `Imported ${sessionsImported} sessions and ${longTermMemoryImported} long-term memory entries`,
+    );
+    if (errors.length > 0) {
+      this.logger.warn(`Import completed with ${errors.length} errors`);
+    }
+
+    return {
+      sessionsImported,
+      longTermMemoryImported,
+      errors,
+    };
+  }
+
+  /**
+   * Prune memory based on strategy
+   */
+  pruneMemory(strategy: {
+    maxSessions?: number;
+    maxMessagesPerSession?: number;
+    maxLongTermEntries?: number;
+    keepRecentDays?: number;
+  }): {
+    sessionsPruned: number;
+    messagesPruned: number;
+    longTermEntriesPruned: number;
+  } {
+    let sessionsPruned = 0;
+    let messagesPruned = 0;
+    let longTermEntriesPruned = 0;
+    const now = new Date();
+
+    // Prune sessions by age (keepRecentDays)
+    if (strategy.keepRecentDays !== undefined) {
+      const cutoffTime =
+        now.getTime() - strategy.keepRecentDays * 24 * 60 * 60 * 1000;
+
+      for (const [sessionId, session] of this.sessionMemoryStore.entries()) {
+        if (session.lastAccessedAt.getTime() < cutoffTime) {
+          this.sessionMemoryStore.delete(sessionId);
+          sessionsPruned++;
+        }
+      }
+    }
+
+    // Prune oldest sessions if exceeding maxSessions
+    if (
+      strategy.maxSessions !== undefined &&
+      this.sessionMemoryStore.size > strategy.maxSessions
+    ) {
+      const sessions = Array.from(this.sessionMemoryStore.entries()).sort(
+        ([, a], [, b]) =>
+          a.lastAccessedAt.getTime() - b.lastAccessedAt.getTime(),
+      );
+
+      const toRemove = sessions.length - strategy.maxSessions + sessionsPruned;
+      for (let i = 0; i < toRemove && i < sessions.length; i++) {
+        this.sessionMemoryStore.delete(sessions[i][0]);
+        sessionsPruned++;
+      }
+    }
+
+    // Prune messages within sessions
+    if (strategy.maxMessagesPerSession !== undefined) {
+      for (const session of this.sessionMemoryStore.values()) {
+        const currentLength = session.conversationHistory.length;
+        if (currentLength > strategy.maxMessagesPerSession) {
+          const toKeep = strategy.maxMessagesPerSession;
+          session.conversationHistory =
+            session.conversationHistory.slice(-toKeep);
+          messagesPruned += currentLength - toKeep;
+        }
+      }
+    }
+
+    // Prune oldest long-term memory entries
+    if (
+      strategy.maxLongTermEntries !== undefined &&
+      this.longTermMemoryStore.size > strategy.maxLongTermEntries
+    ) {
+      const entries = Array.from(this.longTermMemoryStore.entries()).sort(
+        ([, a], [, b]) => a.createdAt.getTime() - b.createdAt.getTime(),
+      );
+
+      const toRemove = entries.length - strategy.maxLongTermEntries;
+      for (let i = 0; i < toRemove && i < entries.length; i++) {
+        this.longTermMemoryStore.delete(entries[i][0]);
+        longTermEntriesPruned++;
+      }
+    }
+
+    this.logger.log(
+      `Pruned ${sessionsPruned} sessions, ${messagesPruned} messages, ${longTermEntriesPruned} long-term entries`,
+    );
+
+    return {
+      sessionsPruned,
+      messagesPruned,
+      longTermEntriesPruned,
+    };
+  }
+
+  /**
    * Start periodic cleanup of stale sessions
    */
   private startMemoryCleanup(): void {

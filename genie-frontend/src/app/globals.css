@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+	:root {
+		--background: 224 44% 10%; /* Darker blue-gray */
+		--foreground: 210 40% 98%; /* Light gray */
+
+		--card: 224 44% 13%; /* Slightly lighter than background */
+		--card-foreground: 210 40% 98%;
+
+		--popover: 222.2 84% 4.9%;
+		--popover-foreground: 210 40% 98%;
+
+		--primary: 190 95% 55%; /* Bright cyan */
+		--primary-foreground: 222.2 47.4% 11.2%;
+
+		--secondary: 224 44% 15%; /* Mid-tone blue-gray */
+		--secondary-foreground: 210 40% 98%;
+
+		--muted: 217.2 32.6% 20%; /* Darker muted blue-gray */
+		--muted-foreground: 215 20.2% 65.1%;
+
+		--accent: 217.2 32.6% 25%; /* Lighter muted blue-gray */
+		--accent-foreground: 210 40% 98%;
+
+		--destructive: 0 62.8% 30.6%;
+		--destructive-foreground: 210 40% 98%;
+
+		--border: 217.2 32.6% 20%; /* Same as muted */
+		--input: 217.2 32.6% 22%; /* Slightly lighter than border */
+		--ring: 190 95% 55%; /* Bright cyan for focus rings */
+
+		--radius: 0.75rem;
+
+		--chart-1: 190 95% 55%;
+		--chart-2: 160 80% 50%;
+		--chart-3: 30 90% 60%;
+		--chart-4: 280 85% 70%;
+		--chart-5: 340 90% 75%;
+	}
+
+	.dark {
+		--background: 224 44% 10%;
+		--foreground: 210 40% 98%;
+
+		--card: 224 44% 13%;
+		--card-foreground: 210 40% 98%;
+
+		--popover: 222.2 84% 4.9%;
+		--popover-foreground: 210 40% 98%;
+
+		--primary: 190 95% 55%;
+		--primary-foreground: 222.2 47.4% 11.2%;
+
+		--secondary: 224 44% 15%;
+		--secondary-foreground: 210 40% 98%;
+
+		--muted: 217.2 32.6% 20%;
+		--muted-foreground: 215 20.2% 65.1%;
+
+		--accent: 217.2 32.6% 25%;
+		--accent-foreground: 210 40% 98%;
+
+		--destructive: 0 62.8% 30.6%;
+		--destructive-foreground: 210 40% 98%;
+
+		--border: 217.2 32.6% 20%;
+		--input: 217.2 32.6% 22%;
+		--ring: 190 95% 55%;
+
+		--chart-1: 190 95% 55%;
+		--chart-2: 160 80% 50%;
+		--chart-3: 30 90% 60%;
+		--chart-4: 280 85% 70%;
+		--chart-5: 340 90% 75%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
+	}
+	body {
+		@apply bg-background text-foreground;
+	}
+}
+
+/* Remove focus outline for .focus-visible:ring-offset-2:focus-visible */
+.focus-visible\:ring-offset-2:focus-visible {
+	--tw-ring-offset-width: 0px !important;
+}
