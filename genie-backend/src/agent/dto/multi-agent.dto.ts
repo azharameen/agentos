@@ -1,3 +1,4 @@
+import { ApiProperty } from "@nestjs/swagger";
 import {
   IsString,
   IsEnum,
@@ -10,6 +11,17 @@ import {
 } from "class-validator";
 import { Type } from "class-transformer";
 import { CoordinationMode } from "../services/multi-agent-coordinator.service";
+/**
+ * Multi-agent execution response DTO
+ */
+export class MultiAgentResponseDto {
+  @ApiProperty({
+    description: "Aggregated response from all agents",
+    type: "object",
+    additionalProperties: true,
+  })
+  results: Record<string, any>;
+}
 
 /**
  * Agent role DTO

@@ -50,6 +50,47 @@ export interface WorkflowSnapshot {
  */
 @Injectable()
 export class WorkflowVersioningService {
+  /**
+   * Thin wrapper for controller: create workflow version from DTO
+   */
+  async createWorkflowVersion(dto: any) {
+    return await this.createVersion(
+      dto.name,
+      dto.description,
+      {
+        model: dto.model,
+        temperature: dto.temperature,
+        maxIterations: dto.maxIterations,
+        enabledToolCategories: dto.enabledToolCategories,
+        specificTools: dto.specificTools,
+        useGraph: dto.useGraph,
+        enableRAG: dto.enableRAG,
+      },
+      dto.metadata,
+    );
+  }
+
+  async getWorkflowVersions(name: string) {
+    return await this.getVersions(name);
+  }
+
+  async getWorkflowVersion(name: string, version: string) {
+    return await this.getVersion(name, parseInt(version, 10));
+  }
+
+  async getLatestWorkflowVersion(name: string) {
+    return await this.getLatestVersion(name);
+  }
+
+  async getVersionSnapshots(name: string, version: string) {
+    const versionObj = await this.getVersion(name, parseInt(version, 10));
+    return await this.getSnapshots(versionObj.id);
+  }
+
+
+  async compareWorkflowVersions(name: string, version1: string, version2: string) {
+    return await this.compareVersions(name, parseInt(version1, 10), parseInt(version2, 10));
+  }
   private readonly logger = new Logger(WorkflowVersioningService.name);
   private readonly storageDir: string;
   private readonly versionsFile: string;

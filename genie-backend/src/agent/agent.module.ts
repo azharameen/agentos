@@ -20,9 +20,19 @@ import { TracingService } from "./services/tracing.service";
 import { ContentSafetyService } from "./services/content-safety.service";
 import { MultiAgentCoordinatorService } from "./services/multi-agent-coordinator.service";
 import { WorkflowVersioningService } from "./services/workflow-versioning.service";
+import { WorkflowController } from "./workflow.controller";
+import { ContentSafetyController } from "./content-safety.controller";
+import { RagController } from "./rag.controller";
+import { MemoryController } from "./memory.controller";
 
 @Module({
-  controllers: [AgentController],
+  controllers: [
+    AgentController,
+    WorkflowController,
+    ContentSafetyController,
+    RagController,
+    MemoryController,
+  ],
   providers: [
     AzureOpenAIProvider,
     AgentService,
@@ -59,4 +69,4 @@ import { WorkflowVersioningService } from "./services/workflow-versioning.servic
     ObservabilityService,
   ],
 })
-export class AgentModule {}
+export class AgentModule { }

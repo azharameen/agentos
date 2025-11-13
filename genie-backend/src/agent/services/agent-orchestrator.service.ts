@@ -1,3 +1,4 @@
+// ...existing code...
 import { Injectable, Logger } from "@nestjs/common";
 import { AzureOpenAIAdapter } from "./azure-openai-adapter.service";
 import { ToolRegistryService } from "./tool-registry.service";
@@ -21,6 +22,23 @@ import {
  */
 @Injectable()
 export class AgentOrchestratorService {
+  /**
+   * Thin wrapper for agentic task execution from DTO
+   */
+  async executeAgenticTask(
+    dto: import("../dto/agentic-task.dto").AgenticTaskDto,
+  ): Promise<any> {
+    const sessionId = dto.sessionId ?? `session-${Math.random().toString(36).substring(2, 10)}`;
+    return await this.executeTask(dto.prompt, sessionId, {
+      model: dto.model,
+      temperature: dto.temperature,
+      maxIterations: dto.maxIterations,
+      enabledToolCategories: dto.enabledToolCategories,
+      specificTools: dto.specificTools,
+      useGraph: dto.useGraph,
+      enableRAG: dto.enableRAG,
+    });
+  }
   private readonly logger = new Logger(AgentOrchestratorService.name);
 
   constructor(
@@ -33,7 +51,7 @@ export class AgentOrchestratorService {
     private readonly tracing: TracingService,
     private readonly tokenUsage: TokenUsageService,
     private readonly contentSafety: ContentSafetyService,
-  ) {}
+  ) { }
 
   /**
    * Execute an agentic task with autonomous tool use and planning
@@ -92,7 +110,7 @@ export class AgentOrchestratorService {
       // 2. Get tools for execution
       const tools = this.getToolsForExecution(options);
       this.logger.debug(
-        `Using ${tools.length} tools: ${tools.map((t: any) => t.name).join(", ")}`,
+        `Using ${tools.length} tools: ${tools.map((t) => t.name).join(", ")}`,
       );
 
       // 3. Get conversation history
@@ -155,7 +173,7 @@ export class AgentOrchestratorService {
       // 6. Content Safety: Validate output response
       if (this.contentSafety.isEnabled()) {
         const safetyResult = await this.contentSafety.validateResponse(
-          result.output,
+          result.output
         );
         if (!safetyResult.safe) {
           const violations = safetyResult.violations

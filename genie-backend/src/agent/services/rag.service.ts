@@ -28,6 +28,31 @@ interface VectorStoreEntry {
  */
 @Injectable()
 export class RagService {
+  /**
+   * Query RAG knowledge base (DTO wrapper)
+   */
+  async query(dto: import("../dto/rag.dto").RagQueryDto) {
+    // Use similaritySearchWithProvenance for best results
+    const k = dto.topK ?? 3;
+    const options = dto.minScore ? { minScore: dto.minScore } : undefined;
+    const results = await this.similaritySearchWithProvenance(dto.query, k, options);
+    return { results };
+  }
+  /**
+   * Thin wrapper to list all documents
+   */
+  listDocuments() {
+    const docs = this.getAllDocuments();
+    return { documents: docs, count: docs.length };
+  }
+
+  /**
+   * Thin wrapper to clear all documents
+   */
+  async clearDocuments() {
+    await this.clearAll();
+    return { message: "All documents cleared successfully" };
+  }
   private readonly logger = new Logger(RagService.name);
   private embeddings: AzureOpenAIEmbeddings;
   private vectorStore: VectorStoreEntry[] = [];

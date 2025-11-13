@@ -16,6 +16,12 @@ import {
  */
 @Injectable()
 export class AgentMemoryService {
+  /**
+   * List all session IDs currently in memory
+   */
+  listSessions(): string[] {
+    return Array.from(this.sessionMemoryStore.keys());
+  }
   private readonly logger = new Logger(AgentMemoryService.name);
 
   // Short-term memory: session-based conversation history and context
