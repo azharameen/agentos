@@ -40,18 +40,24 @@ export interface WorkflowSnapshot {
 }
 
 /**
- * Service for managing workflow versions and execution history.
+ * WorkflowVersioningService
+ * Manages workflow versions and execution history for agentic workflows.
  *
- * Features:
+ * Responsibilities:
  * - Store workflow configurations with version history
  * - Track execution snapshots for debugging and rollback
- * - Retrieve and compare workflow versions
- * - Restore previous configurations
+ * - Retrieve, compare, and restore workflow versions
+ * - Prune old snapshots and provide analytics
+ *
+ * Usage:
+ * Injected via NestJS DI. Use createWorkflowVersion for API DTOs, getWorkflowVersions for listing, and saveSnapshot for execution history.
  */
 @Injectable()
 export class WorkflowVersioningService {
   /**
-   * Thin wrapper for controller: create workflow version from DTO
+   * Creates a workflow version from a DTO (API payload).
+   * @param dto Workflow version DTO
+   * @returns Created WorkflowVersion object
    */
   async createWorkflowVersion(dto: any) {
     return await this.createVersion(
@@ -70,24 +76,53 @@ export class WorkflowVersioningService {
     );
   }
 
+  /**
+   * Gets all versions for a workflow by name.
+   * @param name Workflow name
+   * @returns Array of WorkflowVersion objects
+   */
   async getWorkflowVersions(name: string) {
     return await this.getVersions(name);
   }
 
+  /**
+   * Gets a specific workflow version by name and version number.
+   * @param name Workflow name
+   * @param version Version number (string)
+   * @returns WorkflowVersion object
+   */
   async getWorkflowVersion(name: string, version: string) {
     return await this.getVersion(name, parseInt(version, 10));
   }
 
+  /**
+   * Gets the latest workflow version by name.
+   * @param name Workflow name
+   * @returns Latest WorkflowVersion object or null
+   */
   async getLatestWorkflowVersion(name: string) {
     return await this.getLatestVersion(name);
   }
 
+  /**
+   * Gets execution snapshots for a specific workflow version.
+   * @param name Workflow name
+   * @param version Version number (string)
+   * @returns Array of WorkflowSnapshot objects
+   */
   async getVersionSnapshots(name: string, version: string) {
     const versionObj = await this.getVersion(name, parseInt(version, 10));
     return await this.getSnapshots(versionObj.id);
   }
 
 
+  /**
+   * Compares two workflow versions by name and version numbers.
+   * @param name Workflow name
+   * @param version1 First version number (string)
+   * @param version2 Second version number (string)
+   * @returns Comparison result (differences)
+   */
   async compareWorkflowVersions(name: string, version1: string, version2: string) {
     return await this.compareVersions(name, parseInt(version1, 10), parseInt(version2, 10));
   }

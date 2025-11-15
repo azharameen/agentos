@@ -6,18 +6,22 @@ import {
 } from "../../shared/agent.interface";
 
 /**
- * Session memory structure
- */
-
-/**
  * AgentMemoryService
- * Handles short-term (session-based) and long-term memory for the agent
- * Following Single Responsibility Principle: Only manages memory operations
+ * Handles short-term (session-based) and long-term memory for the agent.
+ *
+ * Responsibilities:
+ * - Manages session-based conversation history and context
+ * - Stores and retrieves long-term memory entries (facts, knowledge)
+ * - Provides memory analytics, pruning, import/export, and cleanup
+ *
+ * Usage:
+ * Injected via NestJS DI. Use addMessage to append to history, getSession/getContext for retrieval, and pruneMemory for cleanup.
  */
 @Injectable()
 export class AgentMemoryService {
   /**
-   * List all session IDs currently in memory
+   * Lists all session IDs currently in memory.
+   * @returns Array of session IDs
    */
   listSessions(): string[] {
     return Array.from(this.sessionMemoryStore.keys());
@@ -39,7 +43,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get or create session memory
+   * Gets or creates session memory for a given session ID.
+   * @param sessionId Session identifier
+   * @returns SessionMemory object
    */
   getSession(sessionId: string): SessionMemory {
     if (!this.sessionMemoryStore.has(sessionId)) {
@@ -60,7 +66,10 @@ export class AgentMemoryService {
   }
 
   /**
-   * Add a message to conversation history
+   * Adds a message to conversation history for a session.
+   * @param sessionId Session identifier
+   * @param role "human" or "ai"
+   * @param content Message content
    */
   addMessage(sessionId: string, role: "human" | "ai", content: string): void {
     const session = this.getSession(sessionId);
@@ -72,7 +81,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get conversation history for a session
+   * Gets conversation history for a session.
+   * @param sessionId Session identifier
+   * @returns Array of BaseMessage objects
    */
   getConversationHistory(sessionId: string): BaseMessage[] {
     const session = this.getSession(sessionId);
@@ -80,7 +91,10 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get recent conversation history (last N messages)
+   * Gets recent conversation history (last N messages).
+   * @param sessionId Session identifier
+   * @param count Number of messages to retrieve (default 10)
+   * @returns Array of BaseMessage objects
    */
   getRecentHistory(sessionId: string, count: number = 10): BaseMessage[] {
     const history = this.getConversationHistory(sessionId);
@@ -88,7 +102,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Update session context
+   * Updates session context for a session.
+   * @param sessionId Session identifier
+   * @param context Context object to merge
    */
   updateContext(sessionId: string, context: Record<string, any>): void {
     const session = this.getSession(sessionId);
@@ -97,7 +113,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get session context
+   * Gets session context for a session.
+   * @param sessionId Session identifier
+   * @returns Context object
    */
   getContext(sessionId: string): Record<string, any> {
     const session = this.getSession(sessionId);
@@ -105,7 +123,8 @@ export class AgentMemoryService {
   }
 
   /**
-   * Clear session memory
+   * Clears session memory for a given session ID.
+   * @param sessionId Session identifier
    */
   clearSession(sessionId: string): void {
     this.sessionMemoryStore.delete(sessionId);
@@ -113,7 +132,11 @@ export class AgentMemoryService {
   }
 
   /**
-   * Add entry to long-term memory
+   * Adds an entry to long-term memory.
+   * @param content Entry content
+   * @param metadata Optional metadata
+   * @param embedding Optional embedding vector
+   * @returns Entry ID
    */
   addToLongTermMemory(
     content: string,
@@ -135,7 +158,10 @@ export class AgentMemoryService {
   }
 
   /**
-   * Search long-term memory by keyword (simple text search)
+   * Searches long-term memory by keyword (simple text search).
+   * @param query Search query
+   * @param limit Max results to return (default 5)
+   * @returns Array of LongTermMemoryEntry
    */
   searchLongTermMemory(
     query: string,
@@ -158,14 +184,18 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get long-term memory entry by ID
+   * Gets long-term memory entry by ID.
+   * @param id Entry ID
+   * @returns LongTermMemoryEntry or undefined
    */
   getLongTermMemory(id: string): LongTermMemoryEntry | undefined {
     return this.longTermMemoryStore.get(id);
   }
 
   /**
-   * Delete long-term memory entry
+   * Deletes long-term memory entry by ID.
+   * @param id Entry ID
+   * @returns True if deleted, false otherwise
    */
   deleteLongTermMemory(id: string): boolean {
     const deleted = this.longTermMemoryStore.delete(id);
@@ -176,14 +206,16 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get all sessions (for debugging/monitoring)
+   * Gets all session IDs (for debugging/monitoring).
+   * @returns Array of session IDs
    */
   getAllSessions(): string[] {
     return Array.from(this.sessionMemoryStore.keys());
   }
 
   /**
-   * Get memory statistics
+   * Gets memory statistics (active sessions, long-term entries, total messages).
+   * @returns Memory stats object
    */
   getMemoryStats(): {
     activeSessions: number;
@@ -203,7 +235,8 @@ export class AgentMemoryService {
   }
 
   /**
-   * Get detailed memory analytics
+   * Gets detailed memory analytics (sessions, long-term memory, system health).
+   * @returns Analytics object
    */
   getMemoryAnalytics(): {
     sessions: {
@@ -320,7 +353,8 @@ export class AgentMemoryService {
   }
 
   /**
-   * Export memory to JSON (backup/transfer)
+   * Exports memory to JSON (backup/transfer).
+   * @returns Exported memory object
    */
   exportMemory(): {
     exportedAt: Date;
@@ -368,7 +402,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Import memory from JSON (restore from backup)
+   * Imports memory from JSON (restore from backup).
+   * @param data Memory data to import
+   * @returns Import result (counts, errors)
    */
   importMemory(data: {
     sessions: Array<{
@@ -463,7 +499,9 @@ export class AgentMemoryService {
   }
 
   /**
-   * Prune memory based on strategy
+   * Prunes memory based on strategy (max sessions, messages, long-term entries, recent days).
+   * @param strategy Pruning strategy object
+   * @returns Prune result (counts)
    */
   pruneMemory(strategy: {
     maxSessions?: number;
@@ -551,7 +589,7 @@ export class AgentMemoryService {
   }
 
   /**
-   * Start periodic cleanup of stale sessions
+   * Starts periodic cleanup of stale sessions (runs every SESSION_TIMEOUT_MS).
    */
   private startMemoryCleanup(): void {
     setInterval(() => {
@@ -560,7 +598,7 @@ export class AgentMemoryService {
   }
 
   /**
-   * Clean up sessions that haven't been accessed recently
+   * Cleans up sessions that haven't been accessed recently (older than SESSION_TIMEOUT_MS).
    */
   private cleanupStaleSessions(): void {
     const now = new Date();

@@ -17,19 +17,24 @@ interface VectorStoreEntry {
 }
 
 /**
- * RAG (Retrieval-Augmented Generation) Service
- * Manages embeddings, vector store, and retrieval for context-aware AI responses
+ * RagService
+ * Retrieval-Augmented Generation (RAG) service for context-aware AI responses.
  *
- * Features:
- * - Embedding generation using Azure OpenAI (text-embedding-3-small-2-agentos)
- * - In-memory vector store (easily replaceable with SQLite/PostgreSQL)
- * - Document storage and retrieval
- * - Semantic search using cosine similarity
+ * Responsibilities:
+ * - Embedding generation using Azure OpenAI
+ * - In-memory and SQLite vector store support
+ * - Document storage, retrieval, and semantic search
+ * - Provenance tracking and retriever interface for LangChain
+ *
+ * Usage:
+ * Injected via NestJS DI. Use addDocuments to store, similaritySearch for retrieval, and query for API DTOs.
  */
 @Injectable()
 export class RagService {
   /**
-   * Query RAG knowledge base (DTO wrapper)
+   * Queries RAG knowledge base (DTO wrapper).
+   * @param dto RagQueryDto containing query, topK, minScore, etc.
+   * @returns Query result with provenance
    */
   async query(dto: import("../dto/rag.dto").RagQueryDto) {
     // Use similaritySearchWithProvenance for best results
@@ -39,7 +44,8 @@ export class RagService {
     return { results };
   }
   /**
-   * Thin wrapper to list all documents
+   * Lists all documents in the RAG store.
+   * @returns Object with documents and count
    */
   listDocuments() {
     const docs = this.getAllDocuments();
@@ -47,7 +53,8 @@ export class RagService {
   }
 
   /**
-   * Thin wrapper to clear all documents
+   * Clears all documents from the RAG store.
+   * @returns Success message
    */
   async clearDocuments() {
     await this.clearAll();
@@ -74,7 +81,8 @@ export class RagService {
   }
 
   /**
-   * Initialize Azure OpenAI embeddings
+   * Initializes Azure OpenAI embeddings for RAG.
+   * Throws error if credentials are missing.
    */
   private initializeEmbeddings(): void {
     const endpoint = process.env.AZURE_OPENAI_ENDPOINT;
@@ -103,7 +111,10 @@ export class RagService {
   }
 
   /**
-   * Add documents to the vector store
+   * Adds documents to the vector store (in-memory or SQLite).
+   * @param texts Array of document texts
+   * @param metadata Optional array of metadata objects
+   * @returns Array of document IDs
    */
   async addDocuments(
     texts: string[],
@@ -176,7 +187,10 @@ export class RagService {
   }
 
   /**
-   * Search for similar documents using cosine similarity
+   * Searches for similar documents using cosine similarity.
+   * @param query Query string
+   * @param k Number of top results to return (default 5)
+   * @returns Array of Document objects
    */
   async similaritySearch(query: string, k: number = 5): Promise<Document[]> {
     try {
@@ -216,8 +230,11 @@ export class RagService {
   }
 
   /**
-   * Search with scores and provenance metadata
-   * Returns documents with enhanced metadata for traceability
+   * Searches with scores and provenance metadata.
+   * Returns documents with enhanced metadata for traceability.
+   * @param query Query string
+   * @param k Number of top results to return (default 5)
+   * @returns Array of [Document, score] tuples
    */
   async similaritySearchWithScore(
     query: string,
@@ -286,8 +303,12 @@ export class RagService {
   }
 
   /**
-   * Search with full provenance details (enhanced version)
-   * Returns documents with extended metadata including source tracking
+   * Searches with full provenance details (enhanced version).
+   * Returns documents with extended metadata including source tracking.
+   * @param query Query string
+   * @param k Number of top results to return (default 5)
+   * @param options Provenance options (includeScores, minScore, etc.)
+   * @returns Array of provenance result objects
    */
   async similaritySearchWithProvenance(
     query: string,
@@ -349,7 +370,10 @@ export class RagService {
   }
 
   /**
-   * Calculate cosine similarity between two vectors
+   * Calculates cosine similarity between two vectors.
+   * @param a First vector
+   * @param b Second vector
+   * @returns Cosine similarity score
    */
   private cosineSimilarity(a: number[], b: number[]): number {
     if (a.length !== b.length) {
@@ -370,21 +394,26 @@ export class RagService {
   }
 
   /**
-   * Get document by ID
+   * Gets document by ID.
+   * @param id Document ID
+   * @returns LongTermMemoryEntry or undefined
    */
   getDocument(id: string): LongTermMemoryEntry | undefined {
     return this.documents.get(id);
   }
 
   /**
-   * Get all documents
+   * Gets all documents in the RAG store.
+   * @returns Array of LongTermMemoryEntry
    */
   getAllDocuments(): LongTermMemoryEntry[] {
     return Array.from(this.documents.values());
   }
 
   /**
-   * Delete document by ID
+   * Deletes document by ID.
+   * @param id Document ID
+   * @returns True if deleted, false otherwise
    */
   async deleteDocument(id: string): Promise<boolean> {
     const deleted = this.documents.delete(id);
@@ -401,7 +430,7 @@ export class RagService {
   }
 
   /**
-   * Clear all documents
+   * Clears all documents and resets vector store.
    */
   async clearAll(): Promise<void> {
     this.documents.clear();
@@ -413,7 +442,8 @@ export class RagService {
   }
 
   /**
-   * Get statistics
+   * Gets statistics for RAG store (total documents, vector store status).
+   * @returns Stats object
    */
   getStats(): {
     totalDocuments: number;
@@ -426,7 +456,9 @@ export class RagService {
   }
 
   /**
-   * Extract instance name from endpoint URL
+   * Extracts instance name from Azure OpenAI endpoint URL.
+   * @param endpoint Endpoint URL
+   * @returns Instance name string
    */
   private extractInstanceName(endpoint: string): string {
     try {
@@ -441,7 +473,9 @@ export class RagService {
   }
 
   /**
-   * Generate embeddings for a single text (utility method)
+   * Generates embedding for a single text (utility method).
+   * @param text Text to embed
+   * @returns Embedding vector
    */
   async generateEmbedding(text: string): Promise<number[]> {
     try {
@@ -454,7 +488,9 @@ export class RagService {
   }
 
   /**
-   * Generate embeddings for multiple texts
+   * Generates embeddings for multiple texts.
+   * @param texts Array of texts to embed
+   * @returns Array of embedding vectors
    */
   async generateEmbeddings(texts: string[]): Promise<number[][]> {
     try {
@@ -467,8 +503,10 @@ export class RagService {
   }
 
   /**
-   * Create a LangChain-compatible retriever
-   * Returns a retriever that can be used in chains and agents
+   * Creates a LangChain-compatible retriever.
+   * Returns a retriever that can be used in chains and agents.
+   * @param options Retriever options (k)
+   * @returns BaseRetriever instance
    */
   asRetriever(options?: { k?: number }): BaseRetriever {
     const k = options?.k || 5;

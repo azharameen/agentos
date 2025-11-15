@@ -55,22 +55,28 @@ export interface MultiAgentResult {
 }
 
 /**
- * Service for coordinating multiple AI agents with different roles and collaboration patterns.
+ * MultiAgentCoordinatorService
+ * Coordinates multiple AI agents with different roles and collaboration patterns.
  *
- * Supports:
+ * Responsibilities:
  * - Sequential execution (pipeline)
  * - Parallel execution (concurrent analysis)
  * - Debate/consensus (collaborative reasoning)
  * - Router (intelligent task delegation)
+ *
+ * Usage:
+ * Injected via NestJS DI. Use execute for multi-agent tasks, specifying mode and agent roles.
  */
 @Injectable()
 export class MultiAgentCoordinatorService {
   private readonly logger = new Logger(MultiAgentCoordinatorService.name);
 
-  constructor(private readonly orchestrator: AgentOrchestratorService) {}
+  constructor(private readonly orchestrator: AgentOrchestratorService) { }
 
   /**
-   * Execute a multi-agent task with specified coordination mode
+   * Executes a multi-agent task with specified coordination mode.
+   * @param task MultiAgentTask configuration
+   * @returns MultiAgentResult object
    */
   async execute(task: MultiAgentTask): Promise<MultiAgentResult> {
     const startTime = Date.now();
@@ -105,6 +111,11 @@ export class MultiAgentCoordinatorService {
     return result;
   }
 
+  /**
+   * Executes agents sequentially (pipeline mode).
+   * @param task MultiAgentTask configuration
+   * @returns MultiAgentResult object
+   */
   private async executeSequential(
     task: MultiAgentTask,
   ): Promise<MultiAgentResult> {
@@ -148,6 +159,11 @@ export class MultiAgentCoordinatorService {
     };
   }
 
+  /**
+   * Executes agents in parallel (concurrent analysis mode).
+   * @param task MultiAgentTask configuration
+   * @returns MultiAgentResult object
+   */
   private async executeParallel(
     task: MultiAgentTask,
   ): Promise<MultiAgentResult> {
@@ -210,6 +226,11 @@ Synthesize these results into a coherent, comprehensive answer.
     };
   }
 
+  /**
+   * Executes agents in debate/consensus mode (collaborative reasoning).
+   * @param task MultiAgentTask configuration
+   * @returns MultiAgentResult object
+   */
   private async executeDebate(task: MultiAgentTask): Promise<MultiAgentResult> {
     const maxRounds = task.maxRounds || 3;
     const agentResults: MultiAgentResult["agentResults"] = [];
@@ -289,6 +310,11 @@ As a neutral moderator, synthesize the debate into a final consensus answer.
     };
   }
 
+  /**
+   * Executes agents in router mode (intelligent task delegation).
+   * @param task MultiAgentTask configuration
+   * @returns MultiAgentResult object
+   */
   private async executeRouter(task: MultiAgentTask): Promise<MultiAgentResult> {
     this.logger.log(`Router: selecting best agent from ${task.agents.length}`);
 

@@ -22,13 +22,23 @@ import {
 
 /**
  * AgentOrchestratorService
- * Orchestrates agentic workflows using LangChain agents and LangGraph workflows with Azure OpenAI
- * Following Single Responsibility Principle: Only manages agent execution and orchestration
+ * Orchestrates agentic workflows using LangChain agents and LangGraph workflows with Azure OpenAI.
+ *
+ * Responsibilities:
+ * - Executes agentic tasks with autonomous tool use and planning
+ * - Supports streaming, RAG, and workflow versioning
+ * - Integrates content safety, tracing, and memory management
+ * - Provides thin wrappers for DTO-based execution and session statistics
+ *
+ * Usage:
+ * Injected via NestJS DI. Use executeAgenticTask for DTO-based API calls, executeTask for direct agent execution, and executeTaskStream for streaming responses.
  */
 @Injectable()
 export class AgentOrchestratorService {
   /**
-   * Thin wrapper for agentic task execution from DTO
+   * Executes an agentic task from a DTO (API payload).
+   * @param dto AgenticTaskDto containing prompt, session, model, tool options, etc.
+   * @returns Agent execution result
    */
   async executeAgenticTask(
     dto: import("../dto/agentic-task.dto").AgenticTaskDto,
@@ -59,8 +69,13 @@ export class AgentOrchestratorService {
   ) { }
 
   /**
-   * Execute an agentic task with autonomous tool use and planning
-   * Uses LangChain AgentExecutor or LangGraph workflow based on options
+   * Executes an agentic task with autonomous tool use and planning.
+   * Uses LangChain AgentExecutor or LangGraph workflow based on options.
+   * Integrates content safety, tracing, memory, and RAG context.
+   * @param prompt User prompt
+   * @param sessionId Session identifier
+   * @param options Agent execution options (model, tools, RAG, etc.)
+   * @returns AgentExecutionResult
    */
   async executeTask(
     prompt: string,
@@ -90,19 +105,19 @@ export class AgentOrchestratorService {
             .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
             .join(", ");
           this.logger.warn(
-            `Content safety violation in prompt for session ${sessionId}: ${violations}`,
+            `Content safety violation in prompt for session ${sessionId}: ${violations}`
           );
           this.tracing.endTrace(traceId, {
             status: "failed",
             reason: "content_safety_violation",
-            violations,
+            violations
           });
           throw new Error(
-            `Content policy violation detected: ${violations}. Please modify your request.`,
+            `Content policy violation detected: ${violations}. Please modify your request.`
           );
         }
         this.logger.debug(
-          `Prompt passed content safety check (${safetyResult.analysisTime}ms)`,
+          `Prompt passed content safety check (${safetyResult.analysisTime}ms)`
         );
       }
 
@@ -142,7 +157,7 @@ export class AgentOrchestratorService {
           tools,
           conversationHistory,
           options.maxIterations || 10,
-          ragContext || undefined,
+          ragContext || undefined
         );
 
         result = {
@@ -150,7 +165,7 @@ export class AgentOrchestratorService {
           intermediateSteps: [workflowResult.intermediateSteps],
           toolsUsed: workflowResult.toolsUsed,
           model: options.model || DEFAULT_AGENT_MODEL,
-          sessionId,
+          sessionId
         };
       } else {
         this.logger.debug("Using LangChain AgentExecutor for execution");
@@ -165,7 +180,7 @@ export class AgentOrchestratorService {
           tools,
           conversationHistory,
           options.maxIterations || 10,
-          sessionId,
+          sessionId
         );
       }
 
@@ -185,19 +200,19 @@ export class AgentOrchestratorService {
             .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
             .join(", ");
           this.logger.warn(
-            `Content safety violation in response for session ${sessionId}: ${violations}`,
+            `Content safety violation in response for session ${sessionId}: ${violations}`
           );
           this.tracing.endTrace(traceId, {
             status: "failed",
             reason: "content_safety_violation_output",
-            violations,
+            violations
           });
           // Return sanitized response
           result.output =
             "I'm sorry, but I cannot provide that response as it violates content safety policies. Please rephrase your request.";
         } else {
           this.logger.debug(
-            `Response passed content safety check (${safetyResult.analysisTime}ms)`,
+            `Response passed content safety check (${safetyResult.analysisTime}ms)`
           );
         }
       }
@@ -224,7 +239,7 @@ export class AgentOrchestratorService {
       // End trace with error
       this.tracing.endTrace(traceId, {
         success: false,
-        error: error.message,
+        error: error.message
       });
 
       this.logger.error(
@@ -236,22 +251,27 @@ export class AgentOrchestratorService {
   }
 
   /**
-   * Execute an agentic task with streaming support
-   * Yields chunks of agent execution progress and LLM tokens in real-time
+   * Executes an agentic task with streaming support.
+   * Yields chunks of agent execution progress and LLM tokens in real-time.
+   * Emits RUN_STARTED, CONTEXT, and RUN_ERROR events for observability.
+   * @param prompt User prompt
+   * @param sessionId Session identifier
+   * @param options Agent execution options
+   * @returns AsyncGenerator yielding agent events and output chunks
    */
   async *executeTaskStream(
     prompt: string,
     sessionId: string,
-    options: AgentExecutionOptions = {},
+    options: AgentExecutionOptions = {}
   ): AsyncGenerator<any, void, unknown> {
     if (!prompt || typeof prompt !== "string") {
       this.logger.error(
-        `Streaming agentic task failed: prompt is missing or not a string.`,
+        `Streaming agentic task failed: prompt is missing or not a string.`
       );
       throw new Error("Missing required parameter: prompt");
     }
     this.logger.log(
-      `Streaming agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`,
+      `Streaming agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`
     );
 
     try {
@@ -264,15 +284,15 @@ export class AgentOrchestratorService {
           sessionId,
           prompt,
           model: options.model,
-          timestamp: startTime,
-        },
+          timestamp: startTime
+        }
       };
       yield runStartedEvent;
 
       // 1. Get LLM
       const llm = this.azureAdapter.getLLM(
         options.model,
-        options.temperature || 0.7,
+        options.temperature || 0.7
       );
 
       // 2. Get tools for execution
@@ -281,7 +301,7 @@ export class AgentOrchestratorService {
       // 3. Get conversation history
       const conversationHistory = this.memoryService.getRecentHistory(
         sessionId,
-        10,
+        10
       );
 
       // 4. Optional: Enhance with RAG context
@@ -293,8 +313,8 @@ export class AgentOrchestratorService {
             type: "CONTEXT",
             data: {
               context: ragContext,
-              source: "RAG",
-            },
+              source: "RAG"
+            }
           };
           yield contextEvent;
         }
@@ -314,51 +334,56 @@ export class AgentOrchestratorService {
         conversationHistory,
         options.maxIterations || 10,
         sessionId,
-        options.signal,
+        options.signal
       );
 
       const executionTime = Date.now() - startTime;
       this.logger.log(
-        `Agent streaming completed in ${executionTime}ms for session ${sessionId}`,
+        `Agent streaming completed in ${executionTime}ms for session ${sessionId}`
       );
 
       // 6. Update memory (final output will be sent by agent service)
       this.memoryService.addMessage(sessionId, "human", prompt);
       this.memoryService.updateContext(sessionId, {
         lastExecutionTime: executionTime,
-        lastModel: options.model || DEFAULT_AGENT_MODEL,
+        lastModel: options.model || DEFAULT_AGENT_MODEL
       });
     } catch (error: any) {
       this.logger.error(
-        `Agent streaming failed for session ${sessionId}: ${error.message}`,
+        `Agent streaming failed for session ${sessionId}: ${error.message}`
       );
       const runErrorEvent: RunErrorEvent = {
         type: "RUN_ERROR",
         data: {
           error: error.message,
-          sessionId,
-        },
+          sessionId
+        }
       };
       yield runErrorEvent;
     }
   }
 
   /**
-   * Execute a simple query without full agent orchestration (direct LLM call)
+   * Executes a simple query without full agent orchestration (direct LLM call).
+   * Useful for basic completions or chat without tool use.
+   * @param prompt User prompt
+   * @param sessionId Session identifier
+   * @param options Agent execution options
+   * @returns AgentExecutionResult
    */
   async executeSimpleQuery(
     prompt: string,
     sessionId: string,
-    options: AgentExecutionOptions = {},
+    options: AgentExecutionOptions = {}
   ): Promise<AgentExecutionResult> {
     this.logger.log(
-      `Executing simple query for session ${sessionId}: ${prompt.substring(0, 100)}...`,
+      `Executing simple query for session ${sessionId}: ${prompt.substring(0, 100)}...`
     );
 
     try {
       const llm = this.azureAdapter.getLLM(
         options.model,
-        options.temperature || 0.7,
+        options.temperature || 0.7
       );
 
       // Get conversation history
@@ -369,8 +394,8 @@ export class AgentOrchestratorService {
         ...history,
         {
           role: "user",
-          content: prompt,
-        },
+          content: prompt
+        }
       ];
 
       const result = await llm.invoke(messages as any);
@@ -383,18 +408,20 @@ export class AgentOrchestratorService {
         output: result.content as string,
         toolsUsed: [],
         model: options.model || DEFAULT_AGENT_MODEL,
-        sessionId,
+        sessionId
       };
     } catch (error: any) {
       this.logger.error(
-        `Simple query execution failed for session ${sessionId}: ${error.message}`,
+        `Simple query execution failed for session ${sessionId}: ${error.message}`
       );
       throw new Error(`Query execution failed: ${error.message}`);
     }
   }
 
   /**
-   * Get tools for execution based on options
+   * Gets tools for execution based on options (specific tools, categories, or all enabled tools).
+   * @param options AgentExecutionOptions
+   * @returns Array of tool instances
    */
   private getToolsForExecution(options: AgentExecutionOptions): any[] {
     if (options.specificTools && options.specificTools.length > 0) {
@@ -419,7 +446,9 @@ export class AgentOrchestratorService {
   }
 
   /**
-   * Extract tool names from intermediate steps
+   * Extracts tool names from intermediate steps.
+   * @param intermediateSteps Array of agent intermediate steps
+   * @returns Array of tool names used
    */
   private extractToolsUsed(intermediateSteps: any[]): string[] {
     const toolNames = new Set<string>();
@@ -434,14 +463,16 @@ export class AgentOrchestratorService {
   }
 
   /**
-   * Get available models
+   * Gets available models from AzureOpenAIAdapter.
+   * @returns Array of model names
    */
   getAvailableModels(): string[] {
     return this.azureAdapter.getAvailableModels();
   }
 
   /**
-   * Get available tool categories
+   * Gets available tool categories from ToolRegistryService.
+   * @returns Array of tool category names
    */
   getAvailableToolCategories(): string[] {
     const metadata = this.toolRegistry.getAllToolMetadata();
@@ -457,7 +488,9 @@ export class AgentOrchestratorService {
   }
 
   /**
-   * Get session statistics
+   * Gets session statistics (message count, last execution time, tools used, model).
+   * @param sessionId Session identifier
+   * @returns Session statistics object
    */
   getSessionStats(sessionId: string): any {
     const context = this.memoryService.getContext(sessionId);
@@ -473,8 +506,10 @@ export class AgentOrchestratorService {
   }
 
   /**
-   * Get RAG context for a query
-   * Performs similarity search and returns relevant context
+   * Gets RAG context for a query (performs similarity search and returns relevant context).
+   * @param query User query
+   * @param topK Number of top documents to retrieve
+   * @returns Context string or null
    */
   private async getRAGContext(
     query: string,
