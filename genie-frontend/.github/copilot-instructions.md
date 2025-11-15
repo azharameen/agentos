@@ -41,7 +41,9 @@ This guide enables AI coding agents to be immediately productive in the Genie Fr
 
 ---
 
+
 ## 📚 Key References
+- `GENIE_MASTER_DOCUMENTATION.md` — Backend architecture, API, migration, feature status, vertical slices
 - `README.md` — Project setup, build/run instructions
 - `app/page.tsx` — Main page entry
 - `app/layout.tsx` — App-wide layout
@@ -57,11 +59,13 @@ This guide enables AI coding agents to be immediately productive in the Genie Fr
 
 ---
 
+
 ## 🚦 Conventions
 - **TypeScript only**; use functional React components
 - **Prefer App Router** for new pages
 - **Use environment variables** for secrets/config
 - **Follow Next.js best practices** for routing, data fetching, and deployment
+- **Documentation:** Only update master documentation and onboarding files. Do not create new markdown docs unless required for compliance/onboarding.
 
 ---
 

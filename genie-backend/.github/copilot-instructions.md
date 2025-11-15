@@ -54,28 +54,34 @@ This guide enables AI coding agents to be immediately productive in the Genie Ba
 
 ---
 
+
 ## 📚 Key References
-- `ARCHITECTURE.md` — System design, service boundaries, data flow
-- `QUICKSTART.md` — Setup, usage, troubleshooting
-- `README.md` — Features, build/run/test, deployment
+- `GENIE_MASTER_DOCUMENTATION.md` — Architecture, API, migration, feature status, vertical slices
+- `README.md` — Onboarding, build/run/test, environment setup
+- `QUICKSTART.md` — Fast setup and troubleshooting
+- `PRIVACY_REPORT.md` — Compliance and privacy details
+- `.github/copilot-instructions.md` — Agent onboarding and coding conventions
 - `src/agent/tools/` — Tool implementations and extension pattern
 - `src/agent/services/` — Core service logic
 - `src/shared/` — Model/tool/agent interfaces and constants
 
 ---
 
+
 ## 📝 Examples
-- **Add a tool:** See `ARCHITECTURE.md` for template and registration steps
+- **Add a tool:** See `GENIE_MASTER_DOCUMENTATION.md` for template and registration steps
 - **Agentic API call:** `POST /agent/execute` with `{ "prompt": "...", "enabledToolCategories": ["math"] }`
 - **RAG document add/query:** `POST /agent/rag/documents`, `POST /agent/rag/query`
 
 ---
+
 
 ## 🚦 Conventions
 - **TypeScript only**; use DTOs for API payloads
 - **Service classes**: One responsibility, injected via NestJS DI
 - **Tool input validation:** Always use Zod schemas
 - **Environment config:** All features toggled via `.env` (see `.env.template`)
+- **Documentation:** Only update master documentation and onboarding files. Do not create new markdown docs unless required for compliance/onboarding.
 
 ---
 

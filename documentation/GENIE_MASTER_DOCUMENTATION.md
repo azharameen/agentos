@@ -135,14 +135,27 @@
 
 - All legacy endpoints (`/agent/query`, `/agent/stream`, `/agent/multi-execute`) are deprecated.
 - Use `/agent/execute` with appropriate flags (`stream`, `multiAgent`, `useGraph`, etc.) for all agentic tasks.
-- See API_UNIFICATION_SUMMARY.md and MIGRATION_GUIDE.md for migration steps and examples.
+- Migration steps and examples are now consolidated in this master documentation. All previous migration guides and API summaries have been removed for clarity.
 
 ---
 
-## References
+## Documentation Conventions & References
 
-- See documentation/ for SSE_EVENTS.md, STREAMING_IMPLEMENTATION.md, TESTING_STREAMING.md, API_CONTRACT.md, BACKEND_IMPROVEMENTS.md, INTEGRATION_SUMMARY.md.
-- See genie-backend/ for README.md, ARCHITECTURE.md, IMPLEMENTATION_SUMMARY.md, ADVANCED_FEATURES.md, API_REFERENCE.md, API_REFERENCE_DETAILED.md, API_UNIFICATION_SUMMARY.md, QUICKSTART.md, LANGCHAIN_V1_MIGRATION.md.
+- **Authoritative Docs:**
+ 	- `GENIE_MASTER_DOCUMENTATION.md` (this file): All architecture, API, migration, and feature status info.
+ 	- `README.md` (backend & frontend): Onboarding, build/run/test, environment setup.
+ 	- `QUICKSTART.md` (backend): Fast setup and troubleshooting.
+ 	- `PRIVACY_REPORT.md` (backend): Compliance and privacy details.
+ 	- `.github/copilot-instructions.md` (backend & frontend): Agent onboarding and coding conventions.
+
+- **Vertical Slicing:**
+ 	- All features and docs are organized by vertical slice (agentic execution, RAG, memory, multi-agent, workflow, streaming/events, error handling, API unification).
+ 	- Obsolete, redundant, and partial documentation files have been removed for clarity and maintainability.
+
+- **How to Contribute Docs:**
+ 	- Update only the master documentation and essential onboarding files.
+ 	- Do not create new markdown files unless explicitly required for compliance or onboarding.
+ 	- All references to deleted files have been removed.
 
 ---
 
