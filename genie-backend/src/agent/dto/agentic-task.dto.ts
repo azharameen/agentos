@@ -37,7 +37,6 @@ export class AgentRoleDto {
   })
   @IsString()
   description: string;
-
   @ApiPropertyOptional({
     description: "Tool categories this agent can use",
     example: ["math", "calculator"],
@@ -47,7 +46,6 @@ export class AgentRoleDto {
   @IsArray()
   @IsString({ each: true })
   toolCategories?: string[];
-
   @ApiPropertyOptional({
     description: "Specific tools this agent can use",
     example: ["calculator", "scientific_calculator"],
@@ -57,7 +55,6 @@ export class AgentRoleDto {
   @IsArray()
   @IsString({ each: true })
   specificTools?: string[];
-
   @ApiPropertyOptional({
     description: "Custom system prompt for this agent",
     example: "You are a math expert. Focus on accuracy and show your work.",
@@ -88,7 +85,6 @@ export class AgenticTaskDto {
   })
   @IsString()
   prompt: string;
-
   @ApiPropertyOptional({
     description: "Session ID for maintaining conversation context",
     example: "session-123-abc",
@@ -96,7 +92,6 @@ export class AgenticTaskDto {
   @IsOptional()
   @IsString()
   sessionId?: string;
-
   @ApiPropertyOptional({
     description: "Model to use for the agent",
     example: AGENT_MODELS[0].name,
@@ -105,19 +100,17 @@ export class AgenticTaskDto {
   @IsOptional()
   @IsString()
   model?: string;
-
   @ApiPropertyOptional({
     description: "Temperature for LLM (0.0 to 1.0)",
     example: 0.7,
-    minimum: 0,
-    maximum: 1,
+    minimum: 0.0,
+    maximum: 1.0,
   })
   @IsOptional()
   @IsNumber()
   @Min(0)
   @Max(1)
   temperature?: number;
-
   @ApiPropertyOptional({
     description: "Maximum iterations for agent execution",
     example: 10,

@@ -61,6 +61,7 @@ export class AzureOpenAIAdapter {
       azureOpenAIApiVersion: modelConfig.apiVersion,
       temperature,
       maxTokens: 2048,
+      streaming: true, // Enable streaming for incremental token delivery
     });
   }
 

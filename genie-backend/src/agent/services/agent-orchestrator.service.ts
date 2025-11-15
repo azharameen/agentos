@@ -14,6 +14,11 @@ import {
   AgentExecutionResult,
   AgentExecutionOptions,
 } from "../../shared/agent.interface";
+import {
+  RunStartedEvent,
+  ContextEvent,
+  RunErrorEvent
+} from "../../shared/agent-events.interface";
 
 /**
  * AgentOrchestratorService
@@ -252,6 +257,18 @@ export class AgentOrchestratorService {
     try {
       const startTime = Date.now();
 
+      // Emit RUN_STARTED event as the first chunk
+      const runStartedEvent: RunStartedEvent = {
+        type: "RUN_STARTED",
+        data: {
+          sessionId,
+          prompt,
+          model: options.model,
+          timestamp: startTime,
+        },
+      };
+      yield runStartedEvent;
+
       // 1. Get LLM
       const llm = this.azureAdapter.getLLM(
         options.model,
@@ -272,10 +289,14 @@ export class AgentOrchestratorService {
       if (options.enableRAG !== false) {
         ragContext = await this.getRAGContext(prompt);
         if (ragContext) {
-          yield {
-            type: "context",
-            data: { context: ragContext },
+          const contextEvent: ContextEvent = {
+            type: "CONTEXT",
+            data: {
+              context: ragContext,
+              source: "RAG",
+            },
           };
+          yield contextEvent;
         }
       }
 
@@ -311,10 +332,14 @@ export class AgentOrchestratorService {
       this.logger.error(
         `Agent streaming failed for session ${sessionId}: ${error.message}`,
       );
-      yield {
-        type: "error",
-        data: { error: error.message },
+      const runErrorEvent: RunErrorEvent = {
+        type: "RUN_ERROR",
+        data: {
+          error: error.message,
+          sessionId,
+        },
       };
+      yield runErrorEvent;
     }
   }
 

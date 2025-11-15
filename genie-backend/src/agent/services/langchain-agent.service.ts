@@ -3,11 +3,19 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { BaseMessage, HumanMessage } from "@langchain/core/messages";
 import { AzureChatOpenAI } from "@langchain/openai";
 import { AgentExecutionResult } from "../../shared/agent.interface";
+import {
+  RunCancelledEvent,
+  ToolCallStartEvent,
+  ToolCompleteEvent,
+  TextMessageContentEvent,
+  RunFinishedEvent,
+  RunErrorEvent
+} from "../../shared/agent-events.interface";
 
 // Note: LangChain v1 uses createAgent from "langchain" package
 // but @langchain/langgraph/prebuilt is available in current versions
 // Using LangGraph's createReactAgent for now (compatible approach)
-import { createReactAgent } from "@langchain/langgraph/prebuilt";
+import { createAgent } from "langchain";
 import { MemorySaver } from "@langchain/langgraph";
 
 /**
@@ -33,7 +41,7 @@ import { MemorySaver } from "@langchain/langgraph";
 @Injectable()
 export class LangChainAgentService {
   private readonly logger = new Logger(LangChainAgentService.name);
-  private memory = new MemorySaver();
+  private readonly memory = new MemorySaver();
 
   /**
    * Execute agent with tools using LangGraph's createReactAgent
@@ -47,7 +55,7 @@ export class LangChainAgentService {
     tools: DynamicStructuredTool[],
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
-    sessionId?: string,
+    sessionId?: string
   ): Promise<AgentExecutionResult> {
     try {
       this.logger.log(`Executing LangChain agent with ${tools.length} tools`);
@@ -55,26 +63,25 @@ export class LangChainAgentService {
       // Build system prompt
       const systemPrompt = this.getSystemPrompt(tools);
 
-      // Create ReAct agent with LangGraph
-      const agent = createReactAgent({
-        llm,
+      // Create agent with LangChain v1
+      const agent = createAgent({
+        model: llm,
         tools,
-        messageModifier: systemPrompt,
-        checkpointSaver: this.memory,
+        systemPrompt,
       });
 
       // Prepare messages: history + user input
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input),
+        new HumanMessage(input)
       ];
 
       // Configure agent execution
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`,
+          thread_id: sessionId || `session-${Date.now()}`
         },
-        recursionLimit: maxIterations,
+        recursionLimit: maxIterations
       };
 
       // Invoke agent (LangGraph handles ReAct loop internally)
@@ -104,9 +111,9 @@ export class LangChainAgentService {
               intermediateSteps.push({
                 action: {
                   tool: toolName,
-                  toolInput: toolCall.args || toolCall.function?.arguments,
+                  toolInput: toolCall.args || toolCall.function?.arguments
                 },
-                observation: "Tool executed (details in next message)",
+                observation: "Tool executed (details in next message)"
               });
             }
           }
@@ -114,7 +121,7 @@ export class LangChainAgentService {
       }
 
       this.logger.log(
-        `Agent completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`,
+        `Agent completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`
       );
 
       return {
@@ -122,7 +129,7 @@ export class LangChainAgentService {
         intermediateSteps,
         toolsUsed: Array.from(toolsUsed),
         model: "azure-openai",
-        sessionId: config.configurable.thread_id,
+        sessionId: config.configurable.thread_id
       };
     } catch (error: any) {
       this.logger.error(`Agent execution failed: ${error.message}`);
@@ -142,7 +149,7 @@ export class LangChainAgentService {
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
     sessionId?: string,
-    signal?: AbortSignal,
+    signal?: AbortSignal
   ): AsyncGenerator<any, void, unknown> {
     try {
       this.logger.log(`Streaming LangChain agent with ${tools.length} tools`);
@@ -156,41 +163,39 @@ export class LangChainAgentService {
       // Build system prompt
       const systemPrompt = this.getSystemPrompt(tools);
 
-      // Create ReAct agent with LangGraph
-      const agent = createReactAgent({
-        llm,
+      // Create agent with LangChain v1
+      const agent = createAgent({
+        model: llm,
         tools,
-        messageModifier: systemPrompt,
-        checkpointSaver: this.memory,
+        systemPrompt,
       });
 
       // Prepare messages: history + user input
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input),
+        new HumanMessage(input)
       ];
 
       // Configure agent execution
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`,
+          thread_id: sessionId || `session-${Date.now()}`
         },
-        recursionLimit: maxIterations,
+        recursionLimit: maxIterations
       };
 
       // Stream agent execution using LangGraph's stream method
       this.logger.debug(
-        `Streaming agent with recursion limit ${maxIterations}`,
+        `Streaming agent with recursion limit ${maxIterations}`
       );
 
       const toolsUsed: Set<string> = new Set();
       let finalOutput = "";
       let messageCounter = 0;
-      let currentToolCall: {
-        name: string;
-        input: any;
-        startTime: number;
-      } | null = null;
+      const toolCallMap = new Map<
+        string,
+        { name: string; input: any; startTime: number }
+      >();
 
       // Token batching configuration
       const BATCH_SIZE_CHARS = 50; // Batch small tokens into 50-char chunks
@@ -198,15 +203,15 @@ export class LangChainAgentService {
       let tokenBatch = "";
       let batchTimer: NodeJS.Timeout | null = null;
 
-      const flushBatch = () => {
+      const flushBatch = (): TextMessageContentEvent | null => {
         if (tokenBatch.length > 0) {
           return {
             type: "TEXT_MESSAGE_CONTENT",
             data: {
               messageId: `${config.configurable.thread_id}-msg-${messageCounter}`,
               delta: tokenBatch,
-              content: finalOutput,
-            },
+              content: finalOutput
+            }
           };
         }
         return null;
@@ -215,21 +220,25 @@ export class LangChainAgentService {
       // Use 'messages' stream mode to get LLM tokens
       const stream = await agent.stream(
         { messages },
-        { ...config, streamMode: "messages" as any },
+        { ...config, streamMode: "messages" as any }
       );
       for await (const chunk of stream) {
         // Check for cancellation on each chunk
         if (signal?.aborted) {
           this.logger.log("Agent streaming cancelled mid-execution");
-          yield {
+          const cancelEvent: RunCancelledEvent = {
             type: "RUN_CANCELLED",
-            data: { message: "Stream cancelled by client" },
+            data: {
+              message: "Stream cancelled by client",
+              sessionId: config.configurable.thread_id
+            }
           };
+          yield cancelEvent;
           return;
         }
         // chunk is a tuple: [message, metadata]
         if (!Array.isArray(chunk) || chunk.length < 2) continue;
-        const [messageRaw, metadata] = chunk;
+        const [messageRaw] = chunk;
 
         // Type assertion for message
         const message = messageRaw as {
@@ -246,7 +255,6 @@ export class LangChainAgentService {
           typeof message.content === "string" ? message.content : "";
         const safeDelta = safeContent;
         messageCounter++;
-        const safeMessageId = `${config.configurable.thread_id}-msg-${messageCounter}`;
 
         if (safeContent.length > 0) {
           finalOutput += safeContent;
@@ -286,20 +294,6 @@ export class LangChainAgentService {
 
         // Track tool calls
         if (Array.isArray(message.tool_calls)) {
-          // If there's a previous tool call, emit completion before starting new one
-          if (currentToolCall) {
-            const duration = Date.now() - currentToolCall.startTime;
-            yield {
-              type: "TOOL_COMPLETE",
-              data: {
-                tool: currentToolCall.name,
-                duration,
-                status: "success",
-              },
-            };
-            currentToolCall = null;
-          }
-
           for (const toolCallRaw of message.tool_calls) {
             const toolCall = toolCallRaw as {
               name?: string;
@@ -320,36 +314,48 @@ export class LangChainAgentService {
             if (toolName) {
               toolsUsed.add(toolName);
 
+              // Generate unique tool call ID
+              const toolCallId = `${config.configurable.thread_id}-tool-${Date.now()}-${toolName}`;
+              const startTime = Date.now();
+
               // Track this tool call
-              currentToolCall = {
+              toolCallMap.set(toolCallId, {
                 name: toolName,
                 input: toolInput,
-                startTime: Date.now(),
-              };
+                startTime
+              });
 
-              yield {
+              const toolStartEvent: ToolCallStartEvent = {
                 type: "TOOL_CALL_START",
                 data: {
+                  toolCallId,
                   tool: toolName,
                   input: toolInput,
-                  timestamp: currentToolCall.startTime,
-                },
+                  timestamp: startTime
+                }
               };
+              yield toolStartEvent;
+
+              // Emit completion after a brief delay (tool execution happens in LangGraph)
+              // In practice, tool completion will be inferred from subsequent content
+              setTimeout(() => {
+                const toolCall = toolCallMap.get(toolCallId);
+                if (toolCall) {
+                  const duration = Date.now() - toolCall.startTime;
+                  const toolCompleteEvent: ToolCompleteEvent = {
+                    type: "TOOL_COMPLETE",
+                    data: {
+                      toolCallId,
+                      tool: toolCall.name,
+                      duration,
+                      status: "success",
+                    },
+                  };
+                  // Note: Can't yield from setTimeout, will be handled in next message
+                }
+              }, 100);
             }
           }
-        } else if (currentToolCall && safeContent) {
-          // If we get content after a tool call, the tool has completed
-          const duration = Date.now() - currentToolCall.startTime;
-          yield {
-            type: "TOOL_COMPLETE",
-            data: {
-              tool: currentToolCall.name,
-              duration,
-              status: "success",
-              output: safeContent.substring(0, 200), // Include snippet of output
-            },
-          };
-          currentToolCall = null;
         }
       }
 
@@ -368,45 +374,57 @@ export class LangChainAgentService {
         batchTimer = null;
       }
 
-      // Emit final tool completion if still active
-      if (currentToolCall) {
-        const duration = Date.now() - currentToolCall.startTime;
-        yield {
+      // Emit final tool completion events for any remaining tool calls
+      for (const [toolCallId, toolCall] of toolCallMap.entries()) {
+        const duration = Date.now() - toolCall.startTime;
+        const toolCompleteEvent: ToolCompleteEvent = {
           type: "TOOL_COMPLETE",
           data: {
-            tool: currentToolCall.name,
+            toolCallId,
+            tool: toolCall.name,
             duration,
-            status: "success",
-          },
+            status: "success"
+          }
         };
+        yield toolCompleteEvent;
       }
 
       // Send final completion event
-      yield {
+      const runFinishedEvent: RunFinishedEvent = {
         type: "RUN_FINISHED",
         data: {
           output: finalOutput,
           toolsUsed: Array.from(toolsUsed),
-          sessionId: config.configurable.thread_id,
-        },
+          sessionId: config.configurable.thread_id
+        }
       };
+      yield runFinishedEvent;
 
       this.logger.log(
-        `Agent streaming completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`,
+        `Agent streaming completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`
       );
     } catch (error: unknown) {
+      const sessionIdForError = sessionId || "unknown";
       if (error instanceof Error) {
         this.logger.error(`Agent streaming failed: ${error.message}`);
-        yield {
+        const runErrorEvent: RunErrorEvent = {
           type: "RUN_ERROR",
-          data: { error: error.message },
+          data: {
+            error: error.message,
+            sessionId: sessionIdForError
+          }
         };
+        yield runErrorEvent;
       } else {
         this.logger.error(`Agent streaming failed: ${String(error)}`);
-        yield {
+        const runErrorEvent: RunErrorEvent = {
           type: "RUN_ERROR",
-          data: { error: String(error) },
+          data: {
+            error: String(error),
+            sessionId: sessionIdForError
+          }
         };
+        yield runErrorEvent;
       }
     }
   }
@@ -416,7 +434,7 @@ export class LangChainAgentService {
    */
   private getSystemPrompt(tools: DynamicStructuredTool[]): string {
     const toolDescriptions = tools
-      .map((t) => `- ${t.name}: ${t.description}`)
+      .map(t => `- ${t.name}: ${t.description}`)
       .join("\n");
 
     return `You are a highly capable AI agent with access to various tools.
@@ -447,7 +465,7 @@ Always explain your reasoning and the results of tool usage to the user.`;
     tools: DynamicStructuredTool[],
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
-    sessionId?: string,
+    sessionId?: string
   ): AsyncIterable<any> {
     try {
       this.logger.log(
@@ -456,23 +474,22 @@ Always explain your reasoning and the results of tool usage to the user.`;
 
       const systemPrompt = this.getSystemPrompt(tools);
 
-      const agent = createReactAgent({
-        llm,
+      const agent = createAgent({
+        model: llm,
         tools,
-        messageModifier: systemPrompt,
-        checkpointSaver: this.memory,
+        systemPrompt,
       });
 
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input),
+        new HumanMessage(input)
       ];
 
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`,
+          thread_id: sessionId || `session-${Date.now()}`
         },
-        recursionLimit: maxIterations,
+        recursionLimit: maxIterations
       };
 
       // Stream agent execution

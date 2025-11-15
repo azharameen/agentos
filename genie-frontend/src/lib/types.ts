@@ -13,12 +13,36 @@ export type ToolCallMessage = {
   role: 'assistant';
   type: 'tool-call';
   toolName: string;
+  toolCallId: string;
   status: 'started' | 'ended';
   result: string | null;
-  isStreaming?: boolean; // A tool "stream" is just its execution time
+  duration?: number;
+  isStreaming?: boolean;
 };
 
-export type AnyMessage = Message | ToolCallMessage;
+export type ContextMessage = {
+  id: string;
+  role: 'assistant';
+  type: 'context';
+  content: string;
+  source?: string;
+};
+
+export type LoadingMessage = {
+  id: string;
+  role: 'assistant';
+  type: 'loading';
+  content: string;
+};
+
+export type ErrorMessage = {
+  id: string;
+  role: 'assistant';
+  type: 'error';
+  content: string;
+};
+
+export type AnyMessage = Message | ToolCallMessage | ContextMessage | LoadingMessage | ErrorMessage;
 
 export type Conversation = {
   id: string;
