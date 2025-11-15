@@ -12,42 +12,46 @@ import {
   RunErrorEvent
 } from "../../shared/agent-events.interface";
 
-// Note: LangChain v1 uses createAgent from "langchain" package
-// but @langchain/langgraph/prebuilt is available in current versions
-// Using LangGraph's createReactAgent for now (compatible approach)
+// LangChain v1 migration: Using createAgent from "langchain" package
+// This replaces the deprecated createReactAgent from @langchain/langgraph/prebuilt
 import { createAgent } from "langchain";
-import { MemorySaver } from "@langchain/langgraph";
 
 /**
- * LangChain Agent Service
- * Implements true agentic AI using LangChain's AgentExecutor pattern (LangGraph-based)
+ * LangChain Agent Service (v1)
+ * Implements true agentic AI using LangChain v1's createAgent with LangGraph runtime
  *
  * Features:
  * - Function/tool calling with Azure OpenAI
  * - Dynamic tool selection and execution via ReAct pattern
  * - Multi-step reasoning with intermediate steps tracking
- * - Built-in checkpointing and memory (via MemorySaver)
- * - Streaming support (configurable)
+ * - External memory management (conversation history passed as messages)
+ * - Streaming support with token batching and event emission
+ * - Cancellation support via AbortSignal
  *
  * Architecture:
- * - Uses LangGraph's createReactAgent (pre-built agent with ReAct loop)
- * - Replaces custom ReAct implementation with LangChain's battle-tested version
+ * - Uses LangChain v1's createAgent (replaces deprecated createReactAgent)
+ * - Built on LangGraph runtime for durable execution and streaming
+ * - Memory is managed externally by AgentMemoryService (not built-in)
  * - Supports tool error handling, retries, and observability
  *
- * Migration notes (for future LangChain v1 upgrade):
- * - createReactAgent from @langchain/langgraph/prebuilt → createAgent from "langchain"
- * - MemorySaver works with both versions
+ * Migration from createReactAgent (completed):
+ * ✅ Replaced createReactAgent with createAgent from "langchain" package
+ * ✅ Parameter renamed: prompt → systemPrompt
+ * ✅ Memory management moved to external service (passed as messages)
+ * ✅ Streaming uses agent.stream() with streamMode: "messages"
+ * ✅ Session/thread management via config.configurable.thread_id
  */
 @Injectable()
 export class LangChainAgentService {
   private readonly logger = new Logger(LangChainAgentService.name);
-  private readonly memory = new MemorySaver();
 
   /**
-   * Execute agent with tools using LangGraph's createReactAgent
+   * Execute agent with tools using LangChain v1's createAgent
    *
-   * This replaces the custom ReAct loop with LangChain's pre-built agent executor.
-   * Benefits: Built-in error handling, streaming, checkpointing, and observability.
+   * This uses LangChain's standard agent pattern built on LangGraph.
+   * Benefits: Built-in error handling, streaming, and observability.
+   * 
+   * Memory is managed externally - conversation history is passed as messages.
    */
   async execute(
     input: string,
