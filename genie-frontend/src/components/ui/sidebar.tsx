@@ -84,8 +84,8 @@ const SidebarTrigger = React.forwardRef<
       {children || <PanelLeft />}
       <span className="sr-only">Toggle Sidebar</span>
     </Button>
-  )
-})
+  );
+});
 SidebarTrigger.displayName = "SidebarTrigger"
 
 const SidebarHeader = React.forwardRef<

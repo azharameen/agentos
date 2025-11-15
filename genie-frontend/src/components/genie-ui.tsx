@@ -17,8 +17,12 @@ import React, { useEffect, useRef, useState, useTransition } from "react";
 import { AgenticaIcon } from "./icons";
 // ...existing imports...
 import { WelcomeScreen } from "./WelcomeScreen";
+import { Header } from "@/components/layout/header";
+import { LeftSidebar } from "@/components/layout/left-sidebar";
+import { MainLayout } from "@/components/layout/main-layout";
+import { ChatUI } from "@/components/layout/chat-ui";
+import { RightSidebar } from "@/components/layout/right-sidebar";
 import {
-	Sidebar,
 	SidebarHeader,
 	SidebarContent,
 	SidebarTrigger,
@@ -31,6 +35,7 @@ import { TooltipProvider } from "./ui/tooltip";
 import type { AnyMessage, Conversation } from "@/lib/types";
 import { MessageList } from "./MessageList";
 import { handleAgentEvent } from "@/lib/event-handlers";
+import { mockStreamResponse } from "@/mocks/api";
 
 /**
  * Simulates generating a summary for a new conversation.
@@ -57,6 +62,20 @@ export function GenieUI() {
 		setActiveConversationId(newConversationId);
 		setPrompt("");
 	};
+
+	const handleConversationDelete = (id: string) => {
+		setConversations((prev) => prev.filter((c) => c.id !== id));
+		if (activeConversationId === id) {
+			setActiveConversationId(null);
+		}
+	};
+
+	const handleConversationRename = (id: string, newName: string) => {
+		setConversations((prev) =>
+			prev.map((c) => (c.id === id ? { ...c, summary: newName } : c))
+		);
+	};
+
 	const { toast } = useToast();
 	const [conversations, setConversations] = useState<Conversation[]>([]);
 	const [activeConversationId, setActiveConversationId] = useState<
@@ -155,62 +174,81 @@ export function GenieUI() {
 			let reader: ReadableStreamDefaultReader<Uint8Array> | null = null;
 
 			try {
-				const response = await fetch(url, {
-					method: "POST",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify(payload),
-					signal: abortController.signal,
-				});
-
-				if (!response.ok) {
-					throw new Error(
-						`HTTP ${response.status}: Failed to get agent response`
-					);
-				}
-
-				if (!response.body) {
-					throw new Error("Response body is null");
-				}
-
-				reader = response.body.getReader();
-				const decoder = new TextDecoder();
-				let buffer = "";
-
-				while (true) {
-					const { value, done } = await reader.read();
-
-					if (done) {
-						if (buffer.trim()) {
-							try {
-								const event = JSON.parse(buffer.trim());
-								handleAgentEvent(event, {
-									conversationId,
-									setConversations,
-								});
-							} catch (err) {
-								console.warn("Failed to parse final buffer:", buffer);
-							}
+				if (process.env.NEXT_PUBLIC_USE_MOCK_API === "true") {
+					const write = (chunk: string) => {
+						if (abortController.signal.aborted) {
+							// Stop further processing if the stream has been aborted
+							throw new DOMException("Aborted", "AbortError");
 						}
-						break;
+						try {
+							const event = JSON.parse(chunk);
+							handleAgentEvent(event, {
+								conversationId,
+								setConversations,
+							});
+						} catch (err) {
+							console.warn("Failed to parse mock event chunk:", chunk, err);
+						}
+					};
+					await mockStreamResponse(currentPrompt, write);
+				} else {
+					const response = await fetch(url, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify(payload),
+						signal: abortController.signal,
+					});
+
+					if (!response.ok) {
+						throw new Error(
+							`HTTP ${response.status}: Failed to get agent response`
+						);
 					}
 
-					if (value) {
-						buffer += decoder.decode(value, { stream: true });
-						const lines = buffer.split("\n");
-						buffer = lines.pop() || "";
+					if (!response.body) {
+						throw new Error("Response body is null");
+					}
 
-						for (const line of lines) {
-							const trimmedLine = line.trim();
-							if (!trimmedLine) continue;
+					reader = response.body.getReader();
+					const decoder = new TextDecoder();
+					let buffer = "";
 
-							try {
-								const event = JSON.parse(trimmedLine);
-								handleAgentEvent(event, {
-									conversationId,
-									setConversations,
-								});
-							} catch (err) {
-								console.warn("Failed to parse event:", trimmedLine, err);
+					while (true) {
+						const { value, done } = await reader.read();
+
+						if (done) {
+							if (buffer.trim()) {
+								try {
+									const event = JSON.parse(buffer.trim());
+									handleAgentEvent(event, {
+										conversationId,
+										setConversations,
+									});
+								} catch (err) {
+									console.warn("Failed to parse final buffer:", buffer);
+								}
+							}
+							break;
+						}
+
+						if (value) {
+							buffer += decoder.decode(value, { stream: true });
+							const lines = buffer.split("\n");
+							buffer = lines.pop() || "";
+
+							for (const line of lines) {
+								const trimmedLine = line.trim();
+								if (!trimmedLine) continue;
+
+								try {
+									const event = JSON.parse(trimmedLine);
+									handleAgentEvent(event, {
+										conversationId,
+										setConversations,
+									});
+								} catch (err) {
+									console.warn("Failed to parse event:", trimmedLine, err);
+								}
 							}
 						}
 					}
@@ -304,176 +342,44 @@ export function GenieUI() {
 		}
 	}, [activeConversation?.messages]);
 
-	useEffect(() => {
-		if (isMobile) {
-			setOpenLeftSidebar(false);
-			setOpenRightSidebar(false);
-		} else {
-			setOpenLeftSidebar(true);
-			setOpenRightSidebar(false);
-		}
-	}, [isMobile]);
-
 	return (
-		<TooltipProvider>
-			<div className="flex h-screen bg-background text-foreground">
-				{/* Left Sidebar */}
-				<Sidebar
-					side="left"
-					isOpen={openLeftSidebar}
-					setIsOpen={setOpenLeftSidebar}
-					isMobile={isMobile}
-				>
-					<SidebarHeader>
-						<div className="flex items-center gap-2 p-1">
-							<AgenticaIcon className="size-7" />
-							<h1 className="text-lg font-semibold truncate">Agentica</h1>
-						</div>
-						<Button
-							onClick={handleNewChat}
-							variant="ghost"
-							size="sm"
-							className="w-full justify-start"
-						>
-							<MessageSquarePlus className="mr-2 size-4" />
-							<span className="truncate">New Chat</span>
-						</Button>
-					</SidebarHeader>
-					<Separator />
-					<SidebarContent className="p-2">
-						<ScrollArea className="h-full">
-							<SidebarMenu>
-								{conversations.map((c) => (
-									<SidebarMenuItem key={c.id}>
-										<SidebarMenuButton
-											isActive={c.id === activeConversationId}
-											onClick={() => setActiveConversationId(c.id)}
-											className="justify-start"
-											aria-label={c.summary}
-										>
-											<span className="truncate">{c.summary}</span>
-										</SidebarMenuButton>
-									</SidebarMenuItem>
-								))}
-							</SidebarMenu>
-						</ScrollArea>
-					</SidebarContent>
-				</Sidebar>
+		<MainLayout
+			leftSidebarOpen={openLeftSidebar}
+			setLeftSidebarOpen={setOpenLeftSidebar}
+			rightSidebarOpen={openRightSidebar}
+			setRightSidebarOpen={setOpenRightSidebar}
+			leftSidebar={
+				<LeftSidebar
+					conversations={conversations}
+					activeConversationId={activeConversationId}
+					onNewChat={handleNewChat}
+					onConversationSelect={setActiveConversationId}
+					onConversationDelete={handleConversationDelete}
+					onConversationRename={handleConversationRename}
+				/>
+			}
+			rightSidebar={<RightSidebar />}
+		>
+			<div className="flex flex-1 flex-col overflow-hidden">
+				<Header
+					activeConversation={activeConversation}
+					onLeftSidebarToggle={() => setOpenLeftSidebar((v) => !v)}
+					onRightSidebarToggle={() => setOpenRightSidebar((v) => !v)}
+				/>
 
-				{/* Main Content */}
-				<div className="flex flex-1 flex-col overflow-hidden">
-					{/* Header */}
-					<header className="flex h-14 shrink-0 items-center justify-between border-b bg-background/95 px-4 backdrop-blur-sm">
-						<div className="flex items-center gap-2">
-							<SidebarTrigger onClick={() => setOpenLeftSidebar((v) => !v)} />
-							<h2 className="truncate font-semibold">
-								{activeConversation?.summary || "Agentica AI Chat"}
-							</h2>
-						</div>
-						<SidebarTrigger onClick={() => setOpenRightSidebar((v) => !v)}>
-							<PanelRight />
-						</SidebarTrigger>
-					</header>
-
-					{/* Chat Area */}
-					<main className="flex-1 overflow-y-auto">
-						<ScrollArea className="h-full" ref={scrollAreaRef}>
-							<div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
-								{!hasConversations || !hasMessages ? (
-									<WelcomeScreen onExamplePrompt={handleExamplePrompt} />
-								) : (
-									<MessageList messages={activeConversation?.messages ?? []} />
-								)}
-							</div>
-						</ScrollArea>
-					</main>
-
-					{/* Chat Footer */}
-					<footer className="shrink-0 bg-background">
-						<div className="mx-auto w-full max-w-4xl p-4">
-							<div className="relative flex items-center rounded-2xl bg-card/70">
-								<Button
-									variant="ghost"
-									size="icon"
-									className="shrink-0 text-muted-foreground ml-2"
-								>
-									<Paperclip className="size-5" />
-									<span className="sr-only">Attach File</span>
-								</Button>
-								<Textarea
-									ref={textareaRef}
-									value={prompt}
-									onChange={handlePromptChange}
-									placeholder="Ask me to write, code, or create..."
-									className="flex-1 resize-none border-0 bg-transparent text-base shadow-none focus-visible:ring-0 focus:outline-none py-3"
-									style={{
-										minHeight: "2.5rem",
-										maxHeight: "12.5rem",
-										overflowY: "auto",
-									}}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" && !e.shiftKey) {
-											e.preventDefault();
-											handleSubmit(e as any);
-										}
-									}}
-									disabled={isStreaming}
-									rows={1}
-								/>
-								<div className="flex shrink-0 items-center gap-1 self-end p-2">
-									{isStreaming ? (
-										<Button variant="ghost" size="icon" onClick={handleStop}>
-											<Square className="size-5" />
-											<span className="sr-only">Stop</span>
-										</Button>
-									) : (
-										<>
-											<Button
-												variant="ghost"
-												size="icon"
-												className="text-muted-foreground"
-											>
-												<Mic className="size-5" />
-												<span className="sr-only">Use Microphone</span>
-											</Button>
-											<Button
-												type="submit"
-												size="icon"
-												onClick={(e) => handleSubmit(e as any)}
-												disabled={!prompt.trim()}
-												className="bg-primary text-primary-foreground hover:bg-primary/90"
-											>
-												<Send className="size-4" />
-												<span className="sr-only">Send</span>
-											</Button>
-										</>
-									)}
-								</div>
-							</div>
-						</div>
-					</footer>
-				</div>
-
-				{/* Right Sidebar */}
-				<Sidebar
-					side="right"
-					isOpen={openRightSidebar}
-					setIsOpen={setOpenRightSidebar}
-					isMobile={isMobile}
-				>
-					<SidebarHeader>
-						<div className="flex items-center gap-2 p-1">
-							<h1 className="truncate text-lg font-semibold">Context</h1>
-						</div>
-					</SidebarHeader>
-					<Separator />
-					<SidebarContent className="p-4">
-						<p className="text-sm text-muted-foreground">
-							Contextual information and tools will appear here.
-						</p>
-					</SidebarContent>
-				</Sidebar>
+				<ChatUI
+					messages={activeConversation?.messages ?? []}
+					scrollAreaRef={scrollAreaRef}
+					hasConversations={hasConversations}
+					hasMessages={hasMessages}
+					onExamplePrompt={handleExamplePrompt}
+					prompt={prompt}
+					onPromptChange={handlePromptChange}
+					onSubmit={handleSubmit}
+					isStreaming={isStreaming}
+					onStop={handleStop}
+				/>
 			</div>
-		</TooltipProvider>
+		</MainLayout>
 	);
 }
