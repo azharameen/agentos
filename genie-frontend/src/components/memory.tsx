@@ -9,6 +9,8 @@ interface MemoryAnalytics {
   averageMessagesPerSession: number;
 }
 
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
 export function Memory() {
   const { toast } = useToast();
   const [analytics, setAnalytics] = useState<MemoryAnalytics | null>(null);
@@ -19,7 +21,8 @@ export function Memory() {
     setIsLoading(true);
     setError(null);
     try {
-      const response = await fetch("http://localhost:3001/memory/analytics");
+      const url = API_URL ? `${API_URL}/memory/analytics` : "/memory/analytics";
+      const response = await fetch(url);
       if (!response.ok) {
         throw new Error("Failed to fetch memory analytics");
       }

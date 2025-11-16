@@ -1,17 +1,9 @@
 "use client";
 
 import React from "react";
-import {
-  SidebarHeader,
-  SidebarContent,
-} from "@/components/ui/sidebar";
+import { SidebarHeader, SidebarContent } from "@/components/ui/sidebar";
 import { Separator } from "@/components/ui/separator";
-import {
-  Accordion,
-  AccordionContent,
-  AccordionItem,
-  AccordionTrigger,
-} from "@/components/ui/accordion";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { KnowledgeBase } from "@/components/knowledge-base";
@@ -21,13 +13,13 @@ export function RightSidebar() {
   return (
     <>
       <SidebarHeader>
-        <div className="flex items-center gap-2 p-1">
+        <div className="flex items-center gap-2 p-1"> 
           <h1 className="truncate text-lg font-semibold">Context</h1>
         </div>
       </SidebarHeader>
       <Separator />
       <SidebarContent className="p-4">
-        <Accordion type="multiple" defaultValue={["rag", "knowledge-base", "memory"]}>
+        <Accordion type="multiple" defaultValue={['rag', 'knowledge-base', 'memory']}> 
           <AccordionItem value="rag">
             <AccordionTrigger>RAG</AccordionTrigger>
             <AccordionContent>
