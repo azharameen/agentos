@@ -75,7 +75,7 @@ export function LeftSidebar({
         <ScrollArea className="h-full">
           <SidebarMenu>
             {conversations.map((c) => (
-              <SidebarMenuItem key={c.id}>
+              <SidebarMenuItem key={c.id}> 
                 {editingConversationId === c.id ? (
                   <div className="flex items-center gap-2 p-2">
                     <Input
@@ -102,7 +102,7 @@ export function LeftSidebar({
                     >
                       <span className="truncate">{c.summary}</span>
                     </SidebarMenuButton>
-                    <div className="flex items-center">
+                    <div className="flex items-center"> 
                       <Button
                         size="icon"
                         variant="ghost"
@@ -115,7 +115,7 @@ export function LeftSidebar({
                       </Button>
                       <AlertDialog>
                         <AlertDialogTrigger asChild>
-                          <Button size="icon" variant="ghost">
+                          <Button size="icon" variant="ghost"> 
                             <Trash2 className="size-4" />
                           </Button>
                         </AlertDialogTrigger>

@@ -35,21 +35,21 @@ export function ChatUI({
   onStop,
 }: ChatUIProps) {
   return (
-    <>
-      <main className="flex-1 overflow-y-auto">
-        <ScrollArea className="h-full" ref={scrollAreaRef}>
-          <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6">
+    <> 
+      <main className="flex-1 overflow-y-auto"> 
+        <ScrollArea className="h-full" ref={scrollAreaRef}> 
+          <div className="mx-auto max-w-4xl space-y-6 p-4 md:p-6"> 
             {!hasConversations || !hasMessages ? (
               <WelcomeScreen onExamplePrompt={onExamplePrompt} />
             ) : (
               <MessageList messages={messages} />
-            )}
-          </div>
+            )} 
+          </div> 
         </ScrollArea>
-      </main>
-      <footer className="shrink-0 bg-background">
-        <div className="mx-auto w-full max-w-4xl p-4">
-          <div className="relative flex items-center rounded-2xl bg-card/70">
+      </main> 
+      <footer className="shrink-0 bg-background"> 
+        <div className="mx-auto w-full max-w-4xl p-4"> 
+          <div className="relative flex items-center rounded-2xl bg-card/70"> 
             <Button
               variant="ghost"
               size="icon"
@@ -77,14 +77,14 @@ export function ChatUI({
               disabled={isStreaming}
               rows={1}
             />
-            <div className="flex shrink-0 items-center gap-1 self-end p-2">
+            <div className="flex shrink-0 items-center gap-1 self-end p-2"> 
               {isStreaming ? (
                 <Button variant="ghost" size="icon" onClick={onStop}>
                   <Square className="size-5" />
                   <span className="sr-only">Stop</span>
                 </Button>
               ) : (
-                <>
+                <> 
                   <Button
                     variant="ghost"
                     size="icon"
