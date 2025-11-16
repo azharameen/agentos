@@ -42,7 +42,7 @@ export function useChat() {
     let conversationId = activeConversationId;
     const userMessageId = `msg_${Date.now()}`;
     const user = {
-      name: "Alex",
+      name: "Azhar Ameen",
       avatarUrl: "https://i.pravatar.cc/150?u=a042581f4e29026704d"
     };
     const newUserMessage: AnyMessage = {

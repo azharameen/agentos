@@ -1,35 +1,20 @@
-"use client";
+'use client';
 
-import { Card, CardContent } from "@/components/ui/card";
-import { FileText } from "lucide-react";
-import type { ContextMessage as ContextMessageType } from "@/lib/types";
+import type { Context } from '@/lib/types';
 
 type ContextMessageProps = {
-	message: ContextMessageType;
+  message: Context;
 };
 
 export const ContextMessage = ({ message }: ContextMessageProps) => {
-	return (
-		<div className="my-4 flex items-center justify-center gap-4">
-			<Card className="w-full max-w-2xl bg-blue-500/10 backdrop-blur-sm border-blue-500/20">
-				<CardContent className="p-3">
-					<div className="flex items-start gap-3">
-						<div className="flex-shrink-0 rounded-full bg-blue-500/10 p-1.5">
-							<FileText className="size-5 text-blue-500" />
-						</div>
-						<div className="flex-1 text-sm">
-							<p className="font-semibold text-foreground mb-1">
-								{message.source
-									? `Context from ${message.source}`
-									: "Retrieved Context"}
-							</p>
-							<p className="text-muted-foreground text-xs whitespace-pre-wrap line-clamp-3">
-								{message.content}
-							</p>
-						</div>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
-	);
+  return (
+    <div className="flex items-end gap-3">
+      <div className="flex flex-1 flex-col gap-1 items-start">
+        <p className="text-text-light text-xs font-medium">Context</p>
+        <div className="flex flex-col gap-2 rounded-lg bg-background-light p-4 w-full shadow-sm border border-border-light max-w-sm">
+          <p className="text-sm text-text-main">{message.content}</p>
+        </div>
+      </div>
+    </div>
+  );
 };

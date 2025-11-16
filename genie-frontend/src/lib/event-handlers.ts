@@ -58,23 +58,23 @@ export function handleTextMessageContentEvent(
 
       // Find last agent message bubble
       const lastAgentIdx = messages.length - 1;
+      const lastAgentMsg = messages[lastAgentIdx];
       if (
         lastAgentIdx >= 0 &&
-        messages[lastAgentIdx].role === 'assistant' &&
-        messages[lastAgentIdx].type === 'text'
+        lastAgentMsg.role === 'assistant' &&
+        lastAgentMsg.type === 'text' &&
+        lastAgentMsg.id === messageId
       ) {
-        // Append delta to last agent message bubble
-        const prevContent = messages[lastAgentIdx].content || '';
+        // Append delta to last agent message bubble ONLY if messageId matches
+        const prevContent = lastAgentMsg.content || '';
         const newContent = prevContent + (delta || '');
-        console.debug('[Agent Stream] Appending delta:', { delta, prevContent, newContent });
         messages = messages.map((m, idx) =>
           idx === lastAgentIdx && m.type === 'text'
             ? { ...m, content: newContent, isStreaming: true }
             : m
         );
       } else {
-        // Create new agent message bubble with first delta
-        console.debug('[Agent Stream] Creating new agent bubble with delta:', { delta });
+        // Create new agent message bubble for new messageId
         messages.push({
           id: messageId,
           role: 'assistant',

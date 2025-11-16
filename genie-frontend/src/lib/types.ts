@@ -6,6 +6,7 @@ export type Message = {
   isStreaming?: boolean;
   name?: string;
   avatarUrl?: string;
+  createdAt?: string;
 };
 
 export type ToolCallMessage = {

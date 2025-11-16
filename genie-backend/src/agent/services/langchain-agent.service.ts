@@ -196,6 +196,8 @@ export class LangChainAgentService {
       const toolsUsed: Set<string> = new Set();
       let finalOutput = "";
       let messageCounter = 0;
+      // Generate a single messageId for the entire agent response stream
+      const agentMessageId = `${config.configurable.thread_id}-msg-${messageCounter}`;
       const toolCallMap = new Map<
         string,
         { name: string; input: any; startTime: number }
@@ -258,7 +260,7 @@ export class LangChainAgentService {
         const safeContent =
           typeof message.content === "string" ? message.content : "";
         const safeDelta = safeContent;
-        messageCounter++;
+        // Do NOT increment messageCounter for every batch; use the same agentMessageId for all deltas
 
         if (safeContent.length > 0) {
           finalOutput += safeContent;
@@ -266,10 +268,15 @@ export class LangChainAgentService {
 
           // Flush batch if it reaches size threshold
           if (tokenBatch.length >= BATCH_SIZE_CHARS) {
-            const batchedMessage = flushBatch();
-            if (batchedMessage) {
-              yield batchedMessage;
-            }
+            // Use the fixed agentMessageId for all deltas
+            yield {
+              type: "TEXT_MESSAGE_CONTENT",
+              data: {
+                messageId: agentMessageId,
+                delta: tokenBatch,
+                content: finalOutput
+              }
+            };
             tokenBatch = "";
 
             // Clear timer if active
@@ -283,10 +290,9 @@ export class LangChainAgentService {
               clearTimeout(batchTimer);
             }
             batchTimer = setTimeout(() => {
-              const batchedMessage = flushBatch();
-              if (batchedMessage) {
-                // Note: Can't yield inside setTimeout, this is a safeguard
-                // In practice, we'll flush at the end anyway
+              // Use the fixed agentMessageId for all deltas
+              if (tokenBatch.length > 0) {
+                // Note: Can't yield inside setTimeout, but will flush at end
               }
               tokenBatch = "";
               batchTimer = null;
@@ -365,10 +371,15 @@ export class LangChainAgentService {
 
       // Flush any remaining tokens in batch
       if (tokenBatch.length > 0) {
-        const batchedMessage = flushBatch();
-        if (batchedMessage) {
-          yield batchedMessage;
-        }
+        // Use the fixed agentMessageId for all deltas
+        yield {
+          type: "TEXT_MESSAGE_CONTENT",
+          data: {
+            messageId: agentMessageId,
+            delta: tokenBatch,
+            content: finalOutput
+          }
+        };
         tokenBatch = "";
       }
 

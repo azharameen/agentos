@@ -1,93 +1,61 @@
+@import url("https://fonts.googleapis.com/css2?family=Nunito+Sans:wght@400;500;600;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
-	:root {
-		--background: 224 44% 10%; /* Darker blue-gray */
-		--foreground: 210 40% 98%; /* Light gray */
-
-		--card: 224 44% 13%; /* Slightly lighter than background */
-		--card-foreground: 210 40% 98%;
-
-		--popover: 222.2 84% 4.9%;
-		--popover-foreground: 210 40% 98%;
-
-		--primary: 190 95% 55%; /* Bright cyan */
-		--primary-foreground: 222.2 47.4% 11.2%;
-
-		--secondary: 224 44% 15%; /* Mid-tone blue-gray */
-		--secondary-foreground: 210 40% 98%;
-
-		--muted: 217.2 32.6% 20%; /* Darker muted blue-gray */
-		--muted-foreground: 215 20.2% 65.1%;
-
-		--accent: 217.2 32.6% 25%; /* Lighter muted blue-gray */
-		--accent-foreground: 210 40% 98%;
-
-		--destructive: 0 62.8% 30.6%;
-		--destructive-foreground: 210 40% 98%;
-
-		--border: 217.2 32.6% 20%; /* Same as muted */
-		--input: 217.2 32.6% 22%; /* Slightly lighter than border */
-		--ring: 190 95% 55%; /* Bright cyan for focus rings */
-
-		--radius: 0.75rem;
-
-		--chart-1: 190 95% 55%;
-		--chart-2: 160 80% 50%;
-		--chart-3: 30 90% 60%;
-		--chart-4: 280 85% 70%;
-		--chart-5: 340 90% 75%;
-	}
-
-	.dark {
-		--background: 224 44% 10%;
-		--foreground: 210 40% 98%;
-
-		--card: 224 44% 13%;
-		--card-foreground: 210 40% 98%;
-
-		--popover: 222.2 84% 4.9%;
-		--popover-foreground: 210 40% 98%;
-
-		--primary: 190 95% 55%;
-		--primary-foreground: 222.2 47.4% 11.2%;
-
-		--secondary: 224 44% 15%;
-		--secondary-foreground: 210 40% 98%;
-
-		--muted: 217.2 32.6% 20%;
-		--muted-foreground: 215 20.2% 65.1%;
-
-		--accent: 217.2 32.6% 25%;
-		--accent-foreground: 210 40% 98%;
-
-		--destructive: 0 62.8% 30.6%;
-		--destructive-foreground: 210 40% 98%;
-
-		--border: 217.2 32.6% 20%;
-		--input: 217.2 32.6% 22%;
-		--ring: 190 95% 55%;
-
-		--chart-1: 190 95% 55%;
-		--chart-2: 160 80% 50%;
-		--chart-3: 30 90% 60%;
-		--chart-4: 280 85% 70%;
-		--chart-5: 340 90% 75%;
-	}
-}
-
-@layer base {
-	* {
-		@apply border-border;
-	}
 	body {
-		@apply bg-background text-foreground;
+		@apply font-display bg-soft-cream text-text-main antialiased;
+	}
+
+	.material-symbols-outlined {
+		font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 24;
 	}
 }
 
-/* Remove focus outline for .focus-visible:ring-offset-2:focus-visible */
-.focus-visible\:ring-offset-2:focus-visible {
-	--tw-ring-offset-width: 0px !important;
+/* Markdown message styles */
+.markdown-message {
+	/* Reset some default styles */
+}
+.markdown-message h1,
+.markdown-message h2,
+.markdown-message h3,
+.markdown-message h4,
+.markdown-message h5,
+.markdown-message h6 {
+	font-weight: 600;
+	margin: 0.5em 0 0.25em 0;
+}
+.markdown-message p {
+	margin: 0.5em 0;
+}
+.markdown-message ul,
+.markdown-message ol {
+	margin: 0.5em 0 0.5em 1.5em;
+	padding-left: 1em;
+}
+.markdown-message li {
+	margin: 0.25em 0;
+}
+.markdown-message code {
+	background: rgba(0, 0, 0, 0.07);
+	border-radius: 4px;
+	padding: 2px 6px;
+	font-family: "Fira Mono", "Menlo", "Monaco", "Consolas", monospace;
+	font-size: 0.95em;
+}
+.markdown-message pre {
+	background: rgba(0, 0, 0, 0.07);
+	border-radius: 6px;
+	padding: 0.75em 1em;
+	overflow-x: auto;
+	font-family: "Fira Mono", "Menlo", "Monaco", "Consolas", monospace;
+	font-size: 0.95em;
+	margin: 0.5em 0;
+}
+.markdown-message a {
+	color: #2563eb;
+	text-decoration: underline;
 }

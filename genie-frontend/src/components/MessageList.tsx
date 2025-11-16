@@ -19,7 +19,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 	);
 	return (
 		<>
-			{uniqueMessages.map((message) => {
+			{uniqueMessages.map((message, index) => {
 				switch (message.type) {
 					case "text":
 						if (message.role === "user") {
@@ -28,8 +28,14 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 						return <AgentMessage key={message.id} message={message} />;
 					case "tool-call":
 						return <ToolCallMessage key={message.id} message={message} />;
-					case "loading":
-						return <LoadingMessage key={message.id} message={message} />;
+					case "loading": {
+						const lastMessage = uniqueMessages[index - 1];
+						const avatarUrl =
+							lastMessage && lastMessage.role === "assistant"
+								? lastMessage.avatarUrl
+								: undefined;
+						return <LoadingMessage key={message.id} avatarUrl={avatarUrl} />;
+					}
 					case "context":
 						return <ContextMessage key={message.id} message={message} />;
 					case "error":
