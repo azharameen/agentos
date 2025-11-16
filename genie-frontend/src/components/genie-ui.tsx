@@ -12,7 +12,19 @@ import { SessionPanel } from "./session-panel";
 import { MemoryPanel } from "./memory-panel";
 import { KnowledgeBasePanel } from "./knowledge-base-panel";
 import { ContextPanel } from "./context-panel";
-
+import { SidebarLayout } from "./layout/SidebarLayout";
+import {
+  MessageCircle,
+  BrainCircuit,
+  Book,
+  Settings,
+  CircleUserRound,
+  Mic,
+  Paperclip,
+  Send,
+  PanelRightClose,
+  PanelLeftClose,
+} from "lucide-react";
 /**
  * Simulates generating a summary for a new conversation.
  * @param text The first prompt of a conversation.
@@ -50,9 +62,19 @@ export function GenieUI() {
 	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	const isMobile = useIsMobile();
-	const [leftPanelOpen, setLeftPanelOpen] = useState(true);
 	const [rightPanelOpen, setRightPanelOpen] = useState(false);
 	const [activeLeftPanel, setActiveLeftPanel] = useState("sessions");
+	const [isLeftSidebarOpen, setIsLeftSidebarOpen] = useState(true);
+	const [isRecording, setIsRecording] = useState(false);
+
+	const handleLeftPanelToggle = (panel: string) => {
+		if (activeLeftPanel === panel && isLeftSidebarOpen) {
+			setIsLeftSidebarOpen(false);
+		} else {
+			setActiveLeftPanel(panel);
+			setIsLeftSidebarOpen(true);
+		}
+	};
 
 	const activeConversation = conversations.find(
 		(c) => c.id === activeConversationId
@@ -70,6 +92,16 @@ export function GenieUI() {
 
 	const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
 		setPrompt(e.target.value);
+	};
+
+	const handleMicClick = () => {
+		if (isRecording) {
+			// Stop recording
+			setIsRecording(false);
+		} else {
+			// Start recording
+			setIsRecording(true);
+		}
 	};
 
 	const handleSubmit = (
@@ -289,10 +321,8 @@ export function GenieUI() {
 
 	useEffect(() => {
 		if (isMobile) {
-			setLeftPanelOpen(false);
 			setRightPanelOpen(false);
 		} else {
-			setLeftPanelOpen(true);
 			setRightPanelOpen(false);
 		}
 	}, [isMobile]);
@@ -304,155 +334,212 @@ export function GenieUI() {
 					<div className="flex flex-col items-center gap-2">
 						<button
 							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "sessions"
+								activeLeftPanel === "sessions" && isLeftSidebarOpen
 									? "text-white bg-muted-blue-500"
 									: "text-text-light hover:bg-background-dark"
 							}`}
-							onClick={() => {
-								setLeftPanelOpen(true);
-								setActiveLeftPanel("sessions");
-							}}
+							onClick={() => handleLeftPanelToggle("sessions")}
 						>
-							<span className="material-symbols-outlined text-2xl">forum</span>
+							<MessageCircle size={24} />
 						</button>
 						<button
 							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "memory"
+								activeLeftPanel === "memory" && isLeftSidebarOpen
 									? "text-white bg-muted-blue-500"
 									: "text-text-light hover:bg-background-dark"
 							}`}
-							onClick={() => {
-								setLeftPanelOpen(true);
-								setActiveLeftPanel("memory");
-							}}
+							onClick={() => handleLeftPanelToggle("memory")}
 						>
-							<span className="material-symbols-outlined text-2xl">memory</span>
+							<BrainCircuit size={24} />
 						</button>
 						<button
 							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "kb"
+								activeLeftPanel === "kb" && isLeftSidebarOpen
 									? "text-white bg-muted-blue-500"
 									: "text-text-light hover:bg-background-dark"
 							}`}
-							onClick={() => {
-								setLeftPanelOpen(true);
-								setActiveLeftPanel("kb");
-							}}
+							onClick={() => handleLeftPanelToggle("kb")}
 						>
-							<span className="material-symbols-outlined text-2xl">
-								import_contacts
-							</span>
+							<Book size={24} />
 						</button>
 					</div>
 					<div className="mt-auto flex flex-col items-center gap-2 pt-4">
 						<button className="flex items-center justify-center rounded-lg p-2.5 text-text-light hover:bg-background-dark">
-							<span className="material-symbols-outlined text-2xl">
-								settings
-							</span>
+							<Settings size={24} />
 						</button>
 						<button className="flex items-center justify-center rounded-lg p-2.5 text-text-light hover:bg-background-dark">
-							<span className="material-symbols-outlined text-2xl">
-								account_circle
-							</span>
+							<CircleUserRound size={24} />
 						</button>
 					</div>
 				</aside>
-				<div
-					className={`border-r border-border-light bg-background-light transition-all duration-300 ease-in-out ${
-						leftPanelOpen ? "w-64" : "w-0"
-					}`}
-				>
-					<div className="flex h-full flex-col p-4 w-64">
-						<div className="mb-4 flex items-center justify-between">
-							<h2 className="text-lg font-semibold text-text-main">
-								{activeLeftPanel === "sessions"
-									? "Sessions"
-									: activeLeftPanel === "memory"
-									? "Memory"
-									: "Knowledge Base"}
-							</h2>
-						</div>
-						<div className="flex-1 overflow-y-auto">
-							{activeLeftPanel === "sessions" && (
-								<SessionPanel
-									conversations={conversations}
-									activeConversationId={activeConversationId}
-									setActiveConversationId={setActiveConversationId}
-									handleNewChat={handleNewChat}
-								/>
-							)}
-							{activeLeftPanel === "memory" && <MemoryPanel />}
-							{activeLeftPanel === "kb" && <KnowledgeBasePanel />}
-						</div>
-					</div>
-				</div>
-				<main className="relative flex flex-1 flex-col bg-soft-cream">
-					<div className="flex-1 overflow-y-auto p-6">
-						<div className="flex flex-col gap-6 max-w-3xl mx-auto">
-							<MessageList messages={activeConversation?.messages ?? []} />
-						</div>
-					</div>
-					<div className="border-t border-border-light bg-background-light p-4">
-						<div className="max-w-3xl mx-auto">
-							<div className="flex items-center gap-2 rounded-xl bg-background-light p-2 shadow-sm border border-border-light focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
-								<button className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light">
-									<span className="material-symbols-outlined text-xl">mic</span>
-								</button>
-								<Textarea
-									ref={textareaRef}
-									value={prompt}
-									onChange={handlePromptChange}
-									placeholder="Type your message..."
-									className="form-textarea w-full resize-none border-0 bg-transparent p-2 text-text-main placeholder:text-text-light focus:ring-0"
-									rows={1}
-									onKeyDown={(e) => {
-										if (e.key === "Enter" && !e.shiftKey) {
-											e.preventDefault();
-											handleSubmit(e as any);
-										}
-									}}
-									disabled={isStreaming}
-								/>
-								<div className="relative group">
-									<button className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light">
-										<span className="material-symbols-outlined text-xl">
-											more_vert
-										</span>
-									</button>
-									<div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-lg shadow-lg border border-border-light hidden group-focus-within:block group-hover:block">
-										<a
-											className="flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-background-dark"
-											href="#"
+				{isLeftSidebarOpen ? (
+					<SidebarLayout
+						sidebar={
+							<>
+								<div className="mb-4 flex items-center justify-between">
+									<h2 className="text-lg font-semibold text-text-main">
+										{activeLeftPanel === "sessions"
+											? "Sessions"
+											: activeLeftPanel === "memory"
+											? "Memory"
+											: "Knowledge Base"}
+									</h2>
+								</div>
+								<div className="flex-1 overflow-y-auto">
+									{activeLeftPanel === "sessions" && (
+										<SessionPanel
+											conversations={conversations}
+											activeConversationId={activeConversationId}
+											setActiveConversationId={setActiveConversationId}
+											handleNewChat={handleNewChat}
+											handleRename={(id, newName) => {
+												setConversations((prev) =>
+													prev.map((c) =>
+														c.id === id ? { ...c, summary: newName } : c
+													)
+												);
+											}}
+											handleDelete={(id) => {
+												setConversations((prev) =>
+													prev.filter((c) => c.id !== id)
+												);
+												if (activeConversationId === id) {
+													setActiveConversationId(null);
+												}
+											}}
+										/>
+									)}
+									{activeLeftPanel === "memory" && <MemoryPanel />}
+									{activeLeftPanel === "kb" && <KnowledgeBasePanel />}
+								</div>
+							</>
+						}
+					>
+						<main className="relative flex flex-1 flex-col bg-soft-cream h-full">
+							<div className="flex-1 overflow-y-auto p-6">
+								<div className="flex flex-col gap-6 max-w-3xl mx-auto">
+									<MessageList messages={activeConversation?.messages ?? []} />
+								</div>
+							</div>
+							<div className="border-t border-border-light bg-background-light p-4">
+								<div className="max-w-3xl mx-auto">
+									<div className="flex items-center gap-2 rounded-xl bg-background-light p-2 shadow-sm border border-border-light focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+										<button
+											className={`shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light ${
+												isRecording ? "bg-red-500 text-white" : ""
+											}`}
+											onClick={handleMicClick}
 										>
-											<span className="material-symbols-outlined text-xl">
-												attach_file
-											</span>
-											<span>Attach Files</span>
-										</a>
-										<a
-											className="flex items-center gap-3 px-4 py-2 text-sm text-text-main hover:bg-background-dark"
-											href="#"
+											<Mic size={20} />
+										</button>
+										<Textarea
+											ref={textareaRef}
+											value={prompt}
+											onChange={handlePromptChange}
+											placeholder="Type your message..."
+											className="form-textarea w-full resize-none border-0 bg-transparent p-2 text-text-main placeholder:text-text-light focus:ring-0"
+											rows={1}
+											onKeyDown={(e) => {
+												if (e.key === "Enter" && !e.shiftKey) {
+													e.preventDefault();
+													handleSubmit(e as any);
+												}
+											}}
+											disabled={isStreaming}
+										/>
+										<div className="relative group">
+											<input
+												type="file"
+												id="file-upload"
+												className="hidden"
+												onChange={(e) => {
+													if (e.target.files) {
+														console.log(e.target.files[0]);
+													}
+												}}
+											/>
+											<label
+												htmlFor="file-upload"
+												className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light cursor-pointer"
+											>
+												<Paperclip size={20} />
+											</label>
+										</div>
+										<button
+											className="shrink-0 flex items-center justify-center size-9 rounded-lg bg-muted-blue-500 text-white hover:bg-muted-blue-500/90 disabled:bg-primary/50 disabled:cursor-not-allowed"
+											onClick={(e) => handleSubmit(e as any)}
+											disabled={!prompt.trim()}
 										>
-											<span className="material-symbols-outlined text-xl">
-												upload_file
-											</span>
-											<span>Upload Files</span>
-										</a>
+											<Send size={20} />
+										</button>
 									</div>
 								</div>
-								<button
-									className="shrink-0 flex items-center justify-center size-9 rounded-lg bg-muted-blue-500 text-white hover:bg-muted-blue-500/90 disabled:bg-primary/50 disabled:cursor-not-allowed"
-									onClick={(e) => handleSubmit(e as any)}
-									disabled={!prompt.trim()}
-								>
-									<span className="material-symbols-outlined text-xl">
-										send
-									</span>
-								</button>
+							</div>
+						</main>
+					</SidebarLayout>
+				) : (
+					<main className="relative flex flex-1 flex-col bg-soft-cream h-full">
+						<div className="flex-1 overflow-y-auto p-6">
+							<div className="flex flex-col gap-6 max-w-3xl mx-auto">
+								<MessageList messages={activeConversation?.messages ?? []} />
 							</div>
 						</div>
-					</div>
-				</main>
+						<div className="border-t border-border-light bg-background-light p-4">
+							<div className="max-w-3xl mx-auto">
+								<div className="flex items-center gap-2 rounded-xl bg-background-light p-2 shadow-sm border border-border-light focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
+									<button
+										className={`shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light ${
+											isRecording ? "bg-red-500 text-white" : ""
+										}`}
+										onClick={handleMicClick}
+									>
+										<Mic size={20} />
+									</button>
+									<Textarea
+										ref={textareaRef}
+										value={prompt}
+										onChange={handlePromptChange}
+										placeholder="Type your message..."
+										className="form-textarea w-full resize-none border-0 bg-transparent p-2 text-text-main placeholder:text-text-light focus:ring-0"
+										rows={1}
+										onKeyDown={(e) => {
+											if (e.key === "Enter" && !e.shiftKey) {
+												e.preventDefault();
+												handleSubmit(e as any);
+											}
+										}}
+										disabled={isStreaming}
+									/>
+									<div className="relative group">
+										<input
+											type="file"
+											id="file-upload"
+											className="hidden"
+											onChange={(e) => {
+												if (e.target.files) {
+													console.log(e.target.files[0]);
+												}
+											}}
+										/>
+										<label
+											htmlFor="file-upload"
+											className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light cursor-pointer"
+										>
+											<Paperclip size={20} />
+										</label>
+									</div>
+									<button
+										className="shrink-0 flex items-center justify-center size-9 rounded-lg bg-muted-blue-500 text-white hover:bg-muted-blue-500/90 disabled:bg-primary/50 disabled:cursor-not-allowed"
+										onClick={(e) => handleSubmit(e as any)}
+										disabled={!prompt.trim()}
+									>
+										<Send size={20} />
+									</button>
+								</div>
+							</div>
+						</div>
+					</main>
+				)}
 				<div
 					className={`absolute inset-y-0 right-0 w-80 bg-background-light border-l border-border-light shadow-xl z-30 transition-transform duration-300 ease-in-out ${
 						rightPanelOpen ? "translate-x-0" : "translate-x-full"
@@ -464,10 +551,9 @@ export function GenieUI() {
 					<button
 						className="flex items-center justify-center size-10 rounded-full bg-background-light text-text-main shadow-lg hover:bg-background-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border border-border-light"
 						onClick={() => setRightPanelOpen(!rightPanelOpen)}
+						title="Toggle right sidebar"
 					>
-						<span className="material-symbols-outlined">
-							{rightPanelOpen ? "close" : "menu_open"}
-						</span>
+						{rightPanelOpen ? <PanelRightClose /> : <PanelLeftClose />}
 					</button>
 				</div>
 			</div>
