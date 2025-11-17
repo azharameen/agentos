@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { Plus, MessageSquare, Pencil, Trash2 } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface SessionPanelProps {
   conversations: any[];
@@ -18,6 +19,7 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({
   handleRename,
   handleDelete,
 }) => {
+  const { toast } = useToast();
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
 
@@ -29,8 +31,20 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({
   const finishRename = (id: string) => {
     if (newName.trim()) {
       handleRename(id, newName.trim());
+      toast({
+        title: "Session Renamed",
+        description: `The session has been successfully renamed to "${newName.trim()}".`,
+      });
     }
     setRenamingId(null);
+  };
+
+  const onDelete = (id: string) => {
+    handleDelete(id);
+    toast({
+      title: "Session Deleted",
+      description: "The session has been successfully deleted.",
+    });
   };
 
   return (
@@ -79,7 +93,7 @@ export const SessionPanel: React.FC<SessionPanelProps> = ({
                   <button onClick={() => startRename(c.id, c.summary)}>
                     <Pencil size={16} />
                   </button>
-                  <button onClick={() => handleDelete(c.id)}>
+                  <button onClick={() => onDelete(c.id)}>
                     <Trash2 size={16} />
                   </button>
                 </div>
