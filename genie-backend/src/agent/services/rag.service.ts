@@ -40,7 +40,11 @@ export class RagService {
     // Use similaritySearchWithProvenance for best results
     const k = dto.topK ?? 3;
     const options = dto.minScore ? { minScore: dto.minScore } : undefined;
-    const results = await this.similaritySearchWithProvenance(dto.query, k, options);
+    const results = await this.similaritySearchWithProvenance(
+      dto.query,
+      k,
+      options,
+    );
     return { results };
   }
   /**

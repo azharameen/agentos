@@ -6,7 +6,7 @@ import { MemoryImportDto } from "./dto/memory-import.dto";
 @ApiTags("Memory")
 @Controller("memory")
 export class MemoryController {
-  constructor(private readonly memoryService: AgentMemoryService) { }
+  constructor(private readonly memoryService: AgentMemoryService) {}
 
   @Get("analytics")
   @ApiOperation({ summary: "Get detailed memory analytics" })

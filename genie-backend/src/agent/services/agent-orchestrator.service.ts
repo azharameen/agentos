@@ -17,7 +17,7 @@ import {
 import {
   RunStartedEvent,
   ContextEvent,
-  RunErrorEvent
+  RunErrorEvent,
 } from "../../shared/agent-events.interface";
 
 /**
@@ -43,7 +43,8 @@ export class AgentOrchestratorService {
   async executeAgenticTask(
     dto: import("../dto/agentic-task.dto").AgenticTaskDto,
   ): Promise<any> {
-    const sessionId = dto.sessionId ?? `session-${Math.random().toString(36).substring(2, 10)}`;
+    const sessionId =
+      dto.sessionId ?? `session-${Math.random().toString(36).substring(2, 10)}`;
     return await this.executeTask(dto.prompt, sessionId, {
       model: dto.model,
       temperature: dto.temperature,
@@ -66,7 +67,7 @@ export class AgentOrchestratorService {
     private readonly tracing: TracingService,
     private readonly tokenUsage: TokenUsageService,
     private readonly contentSafety: ContentSafetyService,
-  ) { }
+  ) {}
 
   /**
    * Executes an agentic task with autonomous tool use and planning.
@@ -105,19 +106,19 @@ export class AgentOrchestratorService {
             .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
             .join(", ");
           this.logger.warn(
-            `Content safety violation in prompt for session ${sessionId}: ${violations}`
+            `Content safety violation in prompt for session ${sessionId}: ${violations}`,
           );
           this.tracing.endTrace(traceId, {
             status: "failed",
             reason: "content_safety_violation",
-            violations
+            violations,
           });
           throw new Error(
-            `Content policy violation detected: ${violations}. Please modify your request.`
+            `Content policy violation detected: ${violations}. Please modify your request.`,
           );
         }
         this.logger.debug(
-          `Prompt passed content safety check (${safetyResult.analysisTime}ms)`
+          `Prompt passed content safety check (${safetyResult.analysisTime}ms)`,
         );
       }
 
@@ -157,7 +158,7 @@ export class AgentOrchestratorService {
           tools,
           conversationHistory,
           options.maxIterations || 10,
-          ragContext || undefined
+          ragContext || undefined,
         );
 
         result = {
@@ -165,7 +166,7 @@ export class AgentOrchestratorService {
           intermediateSteps: [workflowResult.intermediateSteps],
           toolsUsed: workflowResult.toolsUsed,
           model: options.model || DEFAULT_AGENT_MODEL,
-          sessionId
+          sessionId,
         };
       } else {
         this.logger.debug("Using LangChain AgentExecutor for execution");
@@ -180,7 +181,7 @@ export class AgentOrchestratorService {
           tools,
           conversationHistory,
           options.maxIterations || 10,
-          sessionId
+          sessionId,
         );
       }
 
@@ -193,26 +194,26 @@ export class AgentOrchestratorService {
       // 6. Content Safety: Validate output response
       if (this.contentSafety.isEnabled()) {
         const safetyResult = await this.contentSafety.validateResponse(
-          result.output
+          result.output,
         );
         if (!safetyResult.safe) {
           const violations = safetyResult.violations
             .map((v) => `${v.category}(${v.severity}/${v.threshold})`)
             .join(", ");
           this.logger.warn(
-            `Content safety violation in response for session ${sessionId}: ${violations}`
+            `Content safety violation in response for session ${sessionId}: ${violations}`,
           );
           this.tracing.endTrace(traceId, {
             status: "failed",
             reason: "content_safety_violation_output",
-            violations
+            violations,
           });
           // Return sanitized response
           result.output =
             "I'm sorry, but I cannot provide that response as it violates content safety policies. Please rephrase your request.";
         } else {
           this.logger.debug(
-            `Response passed content safety check (${safetyResult.analysisTime}ms)`
+            `Response passed content safety check (${safetyResult.analysisTime}ms)`,
           );
         }
       }
@@ -239,7 +240,7 @@ export class AgentOrchestratorService {
       // End trace with error
       this.tracing.endTrace(traceId, {
         success: false,
-        error: error.message
+        error: error.message,
       });
 
       this.logger.error(
@@ -262,16 +263,16 @@ export class AgentOrchestratorService {
   async *executeTaskStream(
     prompt: string,
     sessionId: string,
-    options: AgentExecutionOptions = {}
+    options: AgentExecutionOptions = {},
   ): AsyncGenerator<any, void, unknown> {
     if (!prompt || typeof prompt !== "string") {
       this.logger.error(
-        `Streaming agentic task failed: prompt is missing or not a string.`
+        `Streaming agentic task failed: prompt is missing or not a string.`,
       );
       throw new Error("Missing required parameter: prompt");
     }
     this.logger.log(
-      `Streaming agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`
+      `Streaming agentic task for session ${sessionId}: ${prompt.substring(0, 100)}...`,
     );
 
     try {
@@ -284,15 +285,15 @@ export class AgentOrchestratorService {
           sessionId,
           prompt,
           model: options.model,
-          timestamp: startTime
-        }
+          timestamp: startTime,
+        },
       };
       yield runStartedEvent;
 
       // 1. Get LLM
       const llm = this.azureAdapter.getLLM(
         options.model,
-        options.temperature || 0.7
+        options.temperature || 0.7,
       );
 
       // 2. Get tools for execution
@@ -301,7 +302,7 @@ export class AgentOrchestratorService {
       // 3. Get conversation history
       const conversationHistory = this.memoryService.getRecentHistory(
         sessionId,
-        10
+        10,
       );
 
       // 4. Optional: Enhance with RAG context
@@ -313,8 +314,8 @@ export class AgentOrchestratorService {
             type: "CONTEXT",
             data: {
               context: ragContext,
-              source: "RAG"
-            }
+              source: "RAG",
+            },
           };
           yield contextEvent;
         }
@@ -334,30 +335,30 @@ export class AgentOrchestratorService {
         conversationHistory,
         options.maxIterations || 10,
         sessionId,
-        options.signal
+        options.signal,
       );
 
       const executionTime = Date.now() - startTime;
       this.logger.log(
-        `Agent streaming completed in ${executionTime}ms for session ${sessionId}`
+        `Agent streaming completed in ${executionTime}ms for session ${sessionId}`,
       );
 
       // 6. Update memory (final output will be sent by agent service)
       this.memoryService.addMessage(sessionId, "human", prompt);
       this.memoryService.updateContext(sessionId, {
         lastExecutionTime: executionTime,
-        lastModel: options.model || DEFAULT_AGENT_MODEL
+        lastModel: options.model || DEFAULT_AGENT_MODEL,
       });
     } catch (error: any) {
       this.logger.error(
-        `Agent streaming failed for session ${sessionId}: ${error.message}`
+        `Agent streaming failed for session ${sessionId}: ${error.message}`,
       );
       const runErrorEvent: RunErrorEvent = {
         type: "RUN_ERROR",
         data: {
           error: error.message,
-          sessionId
-        }
+          sessionId,
+        },
       };
       yield runErrorEvent;
     }
@@ -374,16 +375,16 @@ export class AgentOrchestratorService {
   async executeSimpleQuery(
     prompt: string,
     sessionId: string,
-    options: AgentExecutionOptions = {}
+    options: AgentExecutionOptions = {},
   ): Promise<AgentExecutionResult> {
     this.logger.log(
-      `Executing simple query for session ${sessionId}: ${prompt.substring(0, 100)}...`
+      `Executing simple query for session ${sessionId}: ${prompt.substring(0, 100)}...`,
     );
 
     try {
       const llm = this.azureAdapter.getLLM(
         options.model,
-        options.temperature || 0.7
+        options.temperature || 0.7,
       );
 
       // Get conversation history
@@ -394,8 +395,8 @@ export class AgentOrchestratorService {
         ...history,
         {
           role: "user",
-          content: prompt
-        }
+          content: prompt,
+        },
       ];
 
       const result = await llm.invoke(messages as any);
@@ -408,11 +409,11 @@ export class AgentOrchestratorService {
         output: result.content as string,
         toolsUsed: [],
         model: options.model || DEFAULT_AGENT_MODEL,
-        sessionId
+        sessionId,
       };
     } catch (error: any) {
       this.logger.error(
-        `Simple query execution failed for session ${sessionId}: ${error.message}`
+        `Simple query execution failed for session ${sessionId}: ${error.message}`,
       );
       throw new Error(`Query execution failed: ${error.message}`);
     }

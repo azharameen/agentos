@@ -1,4 +1,4 @@
-import { Response } from 'express';
+import { Response } from "express";
 
 /**
  * Utility to send Server-Sent Events (SSE) in a standardized way.
@@ -13,17 +13,21 @@ export function sendSSE(res: Response, event: string, data: any) {
  * Utility to initialize SSE response headers.
  */
 export function initSSE(res: Response) {
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
   res.flushHeaders();
 }
 
 /**
  * Utility to handle SSE client disconnects.
  */
-export function handleSSEDisconnect(req: any, res: Response, cleanup: () => void) {
-  req.on('close', () => {
+export function handleSSEDisconnect(
+  req: any,
+  res: Response,
+  cleanup: () => void,
+) {
+  req.on("close", () => {
     cleanup();
   });
 }

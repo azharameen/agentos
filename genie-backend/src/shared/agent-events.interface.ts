@@ -8,7 +8,7 @@
  * Event emitted when agent workflow starts
  */
 export interface RunStartedEvent {
-  type: 'RUN_STARTED';
+  type: "RUN_STARTED";
   data: {
     sessionId: string;
     prompt: string;
@@ -21,7 +21,7 @@ export interface RunStartedEvent {
  * Event emitted for each token/chunk of agent response
  */
 export interface TextMessageContentEvent {
-  type: 'TEXT_MESSAGE_CONTENT';
+  type: "TEXT_MESSAGE_CONTENT";
   data: {
     messageId: string;
     delta: string;
@@ -33,7 +33,7 @@ export interface TextMessageContentEvent {
  * Event emitted when a tool call starts
  */
 export interface ToolCallStartEvent {
-  type: 'TOOL_CALL_START';
+  type: "TOOL_CALL_START";
   data: {
     toolCallId: string;
     tool: string;
@@ -46,12 +46,12 @@ export interface ToolCallStartEvent {
  * Event emitted when a tool call completes
  */
 export interface ToolCompleteEvent {
-  type: 'TOOL_COMPLETE';
+  type: "TOOL_COMPLETE";
   data: {
     toolCallId: string;
     tool: string;
     duration: number;
-    status: 'success' | 'error';
+    status: "success" | "error";
     output?: string;
     error?: string;
   };
@@ -61,7 +61,7 @@ export interface ToolCompleteEvent {
  * Event emitted when RAG context is retrieved
  */
 export interface ContextEvent {
-  type: 'CONTEXT';
+  type: "CONTEXT";
   data: {
     context: string;
     source?: string;
@@ -72,7 +72,7 @@ export interface ContextEvent {
  * Event emitted when agent workflow completes successfully
  */
 export interface RunFinishedEvent {
-  type: 'RUN_FINISHED';
+  type: "RUN_FINISHED";
   data: {
     output: string;
     toolsUsed: string[];
@@ -85,7 +85,7 @@ export interface RunFinishedEvent {
  * Event emitted when agent workflow is cancelled
  */
 export interface RunCancelledEvent {
-  type: 'RUN_CANCELLED';
+  type: "RUN_CANCELLED";
   data: {
     message: string;
     sessionId?: string;
@@ -96,7 +96,7 @@ export interface RunCancelledEvent {
  * Event emitted when an error occurs
  */
 export interface RunErrorEvent {
-  type: 'RUN_ERROR';
+  type: "RUN_ERROR";
   data: {
     error: string;
     sessionId?: string;
@@ -122,18 +122,18 @@ export type AgentEvent =
 export function isAgentEvent(obj: any): obj is AgentEvent {
   return (
     obj &&
-    typeof obj === 'object' &&
-    'type' in obj &&
-    'data' in obj &&
+    typeof obj === "object" &&
+    "type" in obj &&
+    "data" in obj &&
     [
-      'RUN_STARTED',
-      'TEXT_MESSAGE_CONTENT',
-      'TOOL_CALL_START',
-      'TOOL_COMPLETE',
-      'CONTEXT',
-      'RUN_FINISHED',
-      'RUN_CANCELLED',
-      'RUN_ERROR',
+      "RUN_STARTED",
+      "TEXT_MESSAGE_CONTENT",
+      "TOOL_CALL_START",
+      "TOOL_COMPLETE",
+      "CONTEXT",
+      "RUN_FINISHED",
+      "RUN_CANCELLED",
+      "RUN_ERROR",
     ].includes(obj.type)
   );
 }

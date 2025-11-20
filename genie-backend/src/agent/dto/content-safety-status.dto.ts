@@ -1,15 +1,15 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsBoolean, IsObject } from 'class-validator';
+import { ApiProperty } from "@nestjs/swagger";
+import { IsBoolean, IsObject } from "class-validator";
 
 export class ContentSafetyStatusDto {
-  @ApiProperty({ description: 'Whether content safety filtering is enabled' })
+  @ApiProperty({ description: "Whether content safety filtering is enabled" })
   @IsBoolean()
   enabled: boolean;
 
   @ApiProperty({
     description: "Configured thresholds for each category",
     type: "object",
-    additionalProperties: true
+    additionalProperties: true,
   })
   @ApiProperty({
     description: "Configured thresholds for each category",

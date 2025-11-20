@@ -9,7 +9,7 @@ import {
   ToolCompleteEvent,
   TextMessageContentEvent,
   RunFinishedEvent,
-  RunErrorEvent
+  RunErrorEvent,
 } from "../../shared/agent-events.interface";
 
 // LangChain v1 migration: Using createAgent from "langchain" package
@@ -50,7 +50,7 @@ export class LangChainAgentService {
    *
    * This uses LangChain's standard agent pattern built on LangGraph.
    * Benefits: Built-in error handling, streaming, and observability.
-   * 
+   *
    * Memory is managed externally - conversation history is passed as messages.
    */
   async execute(
@@ -59,7 +59,7 @@ export class LangChainAgentService {
     tools: DynamicStructuredTool[],
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
-    sessionId?: string
+    sessionId?: string,
   ): Promise<AgentExecutionResult> {
     try {
       this.logger.log(`Executing LangChain agent with ${tools.length} tools`);
@@ -77,15 +77,15 @@ export class LangChainAgentService {
       // Prepare messages: history + user input
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input)
+        new HumanMessage(input),
       ];
 
       // Configure agent execution
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`
+          thread_id: sessionId || `session-${Date.now()}`,
         },
-        recursionLimit: maxIterations
+        recursionLimit: maxIterations,
       };
 
       // Invoke agent (LangGraph handles ReAct loop internally)
@@ -115,9 +115,9 @@ export class LangChainAgentService {
               intermediateSteps.push({
                 action: {
                   tool: toolName,
-                  toolInput: toolCall.args || toolCall.function?.arguments
+                  toolInput: toolCall.args || toolCall.function?.arguments,
                 },
-                observation: "Tool executed (details in next message)"
+                observation: "Tool executed (details in next message)",
               });
             }
           }
@@ -125,7 +125,7 @@ export class LangChainAgentService {
       }
 
       this.logger.log(
-        `Agent completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`
+        `Agent completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`,
       );
 
       return {
@@ -133,7 +133,7 @@ export class LangChainAgentService {
         intermediateSteps,
         toolsUsed: Array.from(toolsUsed),
         model: "azure-openai",
-        sessionId: config.configurable.thread_id
+        sessionId: config.configurable.thread_id,
       };
     } catch (error: any) {
       this.logger.error(`Agent execution failed: ${error.message}`);
@@ -153,7 +153,7 @@ export class LangChainAgentService {
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
     sessionId?: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): AsyncGenerator<any, void, unknown> {
     try {
       this.logger.log(`Streaming LangChain agent with ${tools.length} tools`);
@@ -177,25 +177,25 @@ export class LangChainAgentService {
       // Prepare messages: history + user input
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input)
+        new HumanMessage(input),
       ];
 
       // Configure agent execution
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`
+          thread_id: sessionId || `session-${Date.now()}`,
         },
-        recursionLimit: maxIterations
+        recursionLimit: maxIterations,
       };
 
       // Stream agent execution using LangGraph's stream method
       this.logger.debug(
-        `Streaming agent with recursion limit ${maxIterations}`
+        `Streaming agent with recursion limit ${maxIterations}`,
       );
 
       const toolsUsed: Set<string> = new Set();
       let finalOutput = "";
-      let messageCounter = 0;
+      const messageCounter = 0;
       // Generate a single messageId for the entire agent response stream
       const agentMessageId = `${config.configurable.thread_id}-msg-${messageCounter}`;
       const toolCallMap = new Map<
@@ -216,8 +216,8 @@ export class LangChainAgentService {
             data: {
               messageId: `${config.configurable.thread_id}-msg-${messageCounter}`,
               delta: tokenBatch,
-              content: finalOutput
-            }
+              content: finalOutput,
+            },
           };
         }
         return null;
@@ -226,7 +226,7 @@ export class LangChainAgentService {
       // Use 'messages' stream mode to get LLM tokens
       const stream = await agent.stream(
         { messages },
-        { ...config, streamMode: "messages" as any }
+        { ...config, streamMode: "messages" as any },
       );
       for await (const chunk of stream) {
         // Check for cancellation on each chunk
@@ -236,8 +236,8 @@ export class LangChainAgentService {
             type: "RUN_CANCELLED",
             data: {
               message: "Stream cancelled by client",
-              sessionId: config.configurable.thread_id
-            }
+              sessionId: config.configurable.thread_id,
+            },
           };
           yield cancelEvent;
           return;
@@ -274,8 +274,8 @@ export class LangChainAgentService {
               data: {
                 messageId: agentMessageId,
                 delta: tokenBatch,
-                content: finalOutput
-              }
+                content: finalOutput,
+              },
             };
             tokenBatch = "";
 
@@ -332,7 +332,7 @@ export class LangChainAgentService {
               toolCallMap.set(toolCallId, {
                 name: toolName,
                 input: toolInput,
-                startTime
+                startTime,
               });
 
               const toolStartEvent: ToolCallStartEvent = {
@@ -341,8 +341,8 @@ export class LangChainAgentService {
                   toolCallId,
                   tool: toolName,
                   input: toolInput,
-                  timestamp: startTime
-                }
+                  timestamp: startTime,
+                },
               };
               yield toolStartEvent;
 
@@ -377,8 +377,8 @@ export class LangChainAgentService {
           data: {
             messageId: agentMessageId,
             delta: tokenBatch,
-            content: finalOutput
-          }
+            content: finalOutput,
+          },
         };
         tokenBatch = "";
       }
@@ -398,8 +398,8 @@ export class LangChainAgentService {
             toolCallId,
             tool: toolCall.name,
             duration,
-            status: "success"
-          }
+            status: "success",
+          },
         };
         yield toolCompleteEvent;
       }
@@ -410,13 +410,13 @@ export class LangChainAgentService {
         data: {
           output: finalOutput,
           toolsUsed: Array.from(toolsUsed),
-          sessionId: config.configurable.thread_id
-        }
+          sessionId: config.configurable.thread_id,
+        },
       };
       yield runFinishedEvent;
 
       this.logger.log(
-        `Agent streaming completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`
+        `Agent streaming completed. Tools used: ${Array.from(toolsUsed).join(", ") || "none"}`,
       );
     } catch (error: unknown) {
       const sessionIdForError = sessionId || "unknown";
@@ -426,8 +426,8 @@ export class LangChainAgentService {
           type: "RUN_ERROR",
           data: {
             error: error.message,
-            sessionId: sessionIdForError
-          }
+            sessionId: sessionIdForError,
+          },
         };
         yield runErrorEvent;
       } else {
@@ -436,8 +436,8 @@ export class LangChainAgentService {
           type: "RUN_ERROR",
           data: {
             error: String(error),
-            sessionId: sessionIdForError
-          }
+            sessionId: sessionIdForError,
+          },
         };
         yield runErrorEvent;
       }
@@ -449,7 +449,7 @@ export class LangChainAgentService {
    */
   private getSystemPrompt(tools: DynamicStructuredTool[]): string {
     const toolDescriptions = tools
-      .map(t => `- ${t.name}: ${t.description}`)
+      .map((t) => `- ${t.name}: ${t.description}`)
       .join("\n");
 
     return `You are a highly capable AI agent with access to various tools.
@@ -480,7 +480,7 @@ Always explain your reasoning and the results of tool usage to the user.`;
     tools: DynamicStructuredTool[],
     conversationHistory: BaseMessage[] = [],
     maxIterations: number = 10,
-    sessionId?: string
+    sessionId?: string,
   ): AsyncIterable<any> {
     try {
       this.logger.log(
@@ -497,14 +497,14 @@ Always explain your reasoning and the results of tool usage to the user.`;
 
       const messages: BaseMessage[] = [
         ...conversationHistory,
-        new HumanMessage(input)
+        new HumanMessage(input),
       ];
 
       const config = {
         configurable: {
-          thread_id: sessionId || `session-${Date.now()}`
+          thread_id: sessionId || `session-${Date.now()}`,
         },
-        recursionLimit: maxIterations
+        recursionLimit: maxIterations,
       };
 
       // Stream agent execution

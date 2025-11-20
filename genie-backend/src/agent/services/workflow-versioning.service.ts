@@ -115,7 +115,6 @@ export class WorkflowVersioningService {
     return await this.getSnapshots(versionObj.id);
   }
 
-
   /**
    * Compares two workflow versions by name and version numbers.
    * @param name Workflow name
@@ -123,8 +122,16 @@ export class WorkflowVersioningService {
    * @param version2 Second version number (string)
    * @returns Comparison result (differences)
    */
-  async compareWorkflowVersions(name: string, version1: string, version2: string) {
-    return await this.compareVersions(name, parseInt(version1, 10), parseInt(version2, 10));
+  async compareWorkflowVersions(
+    name: string,
+    version1: string,
+    version2: string,
+  ) {
+    return await this.compareVersions(
+      name,
+      parseInt(version1, 10),
+      parseInt(version2, 10),
+    );
   }
   private readonly logger = new Logger(WorkflowVersioningService.name);
   private readonly storageDir: string;

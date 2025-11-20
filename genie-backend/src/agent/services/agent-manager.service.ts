@@ -1,0 +1,390 @@
+import { Injectable, Logger } from "@nestjs/common";
+import { ProjectContextLoaderService } from "./project-context-loader.service";
+import { SourceAnalyzerService } from "./source-analyzer.service";
+import { CodeOpsService } from "./code-ops.service";
+import { ValidationService } from "./validation.service";
+import { LangChainAgentService } from "./langchain-agent.service";
+import { RagService } from "./rag.service";
+import {
+  ChatMessage,
+  ChatResponse,
+  SuggestedAction,
+  ReferenceType,
+  ActionType,
+} from "../../shared/chat.interface";
+import {
+  ChangeSet,
+  PreviewResult,
+  ApplyResult,
+} from "../../shared/code-ops.interface";
+import type { ProjectContext } from "../../shared/project.interface";
+
+/**
+ * AgentManager orchestrates all agent-related services
+ * Coordinates project understanding, code analysis, and code operations
+ */
+@Injectable()
+export class AgentManagerService {
+  private readonly logger = new Logger(AgentManagerService.name);
+
+  constructor(
+    private readonly projectContextLoader: ProjectContextLoaderService,
+    private readonly sourceAnalyzer: SourceAnalyzerService,
+    private readonly codeOps: CodeOpsService,
+    private readonly validation: ValidationService,
+    private readonly langchain: LangChainAgentService,
+    private readonly rag: RagService,
+  ) { }
+
+  /**
+   * Chat with the agent about code
+   * Provides context-aware responses and code suggestions
+   */
+  async chat(
+    message: string,
+    options?: {
+      projectName?: string;
+      sessionId?: string;
+      useRAG?: boolean;
+    },
+  ): Promise<ChatResponse> {
+    this.logger.log(
+      `Processing chat request for project: ${options?.projectName || "general"}`,
+    );
+
+    try {
+      // Get project context if project specified
+      let contextInfo = "";
+      let context: ProjectContext | null = null;
+      if (options?.projectName) {
+        context = this.projectContextLoader.getCachedContext(
+          options.projectName,
+        );
+        if (context) {
+          contextInfo = this.buildContextSummary(context);
+        } else {
+          this.logger.warn(
+            `Project ${options.projectName} not found, proceeding without context`,
+          );
+        }
+      }
+
+      // Query RAG for relevant documentation if enabled
+      let ragContext = "";
+      if (options?.useRAG && options?.projectName) {
+        const ragResults = await this.rag.query({
+          query: message,
+          topK: 3,
+        });
+        ragContext = ragResults.results
+          .map(
+            (r) =>
+              `[${r.document.metadata.source || "Unknown"}]: ${r.document.pageContent}`,
+          )
+          .join("\n\n");
+      }
+
+      // Build enhanced prompt with context
+      const enhancedPrompt = this.buildEnhancedPrompt(
+        message,
+        contextInfo,
+        ragContext,
+      );
+
+      // Get response from LangChain agent
+      const response = await this.langchain.execute({
+        prompt: enhancedPrompt,
+        sessionId: options?.sessionId || "default",
+        enabledToolCategories: ["code_analysis"],
+        specificTools: [],
+        useGraph: false,
+      });
+
+      // Parse response for suggested actions
+      const suggestedActions = this.extractSuggestedActions(
+        response.output,
+        options?.projectName,
+      );
+
+      const chatMessage: ChatMessage = {
+        role: "agent",
+        content: response.output,
+        timestamp: new Date(),
+        metadata: {
+          projectName: options?.projectName,
+        },
+      };
+
+      return {
+        message: chatMessage,
+        suggestedActions,
+        references: context
+          ? [
+            {
+              type: ReferenceType.FILE,
+              path: context.rootPath,
+              name: context.registration.name,
+            },
+          ]
+          : undefined,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Chat failed: ${(error as Error).message || "Unknown error"}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Analyze code and suggest improvements
+   */
+  async analyzeAndSuggest(
+    projectName: string,
+    filePath: string,
+  ): Promise<ChatResponse> {
+    this.logger.log(`Analyzing ${filePath} in ${projectName}`);
+
+    try {
+      // Analyze the file
+      const analysis = await this.sourceAnalyzer.analyzeFile(
+        projectName,
+        filePath,
+        { detailed: true },
+      );
+
+      // Generate suggestions based on analysis
+      const suggestions: SuggestedAction[] = [];
+
+      // Check for missing documentation
+      const undocumentedSymbols = analysis.symbols.filter(
+        (s) => !s.documentation,
+      );
+      if (undocumentedSymbols.length > 0) {
+        suggestions.push({
+          id: `doc-${Date.now()}`,
+          type: ActionType.EXPLANATION,
+          description: `${undocumentedSymbols.length} symbol(s) could benefit from documentation`,
+          canExecute: false,
+        });
+      }
+
+      const chatMessage: ChatMessage = {
+        role: "agent",
+        content:
+          `Analysis complete for ${filePath}:\n\n` +
+          `- Found ${analysis.symbols.length} symbols\n` +
+          `- ${analysis.imports.length} imports\n` +
+          `- ${analysis.exports.length} exports\n` +
+          `- ${suggestions.length} suggestions for improvement`,
+        timestamp: new Date(),
+        metadata: {
+          projectName,
+        },
+      };
+
+      return {
+        message: chatMessage,
+        suggestedActions: suggestions,
+      };
+    } catch (error) {
+      this.logger.error(
+        `Analysis failed: ${(error as Error).message || "Unknown error"}`,
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Generate code changes based on natural language request
+   */
+  async generateCodeChanges(
+    projectName: string,
+    request: string,
+    targetFiles?: string[],
+  ): Promise<PreviewResult> {
+    this.logger.log(`Generating code changes for ${projectName}: ${request}`);
+
+    try {
+      // Get project context
+      const context = this.projectContextLoader.getCachedContext(projectName);
+      if (!context) {
+        throw new Error(`Project "${projectName}" not found`);
+      }
+
+      // Use LangChain to understand the request and generate changes
+      const prompt = `
+Given the following project context, generate code changes for this request:
+
+Request: ${request}
+
+Project: ${context.name}
+Type: ${context.type}
+Files: ${context.files.length}
+
+${targetFiles ? `Target files: ${targetFiles.join(", ")}` : ""}
+
+Provide the code changes in the following format:
+- File path
+- Operation (create, update, delete)
+- New content
+
+Focus on:
+1. Following existing code style
+2. Maintaining type safety
+3. Adding appropriate documentation
+4. Following best practices
+      `.trim();
+
+      const response = await this.langchain.executeAgent({
+        sessionId: `generate-${Date.now()}`,
+        prompt,
+        enabledToolCategories: ["code_analysis"],
+        specificTools: [],
+        useGraph: false,
+      });
+
+      // Parse response into ChangeSet
+      // Note: In production, this would use structured output or function calling
+      const changeSet: ChangeSet = {
+        projectName,
+        changes: [],
+        metadata: {
+          reason: request,
+          timestamp: new Date(),
+        },
+      };
+
+      // Preview the changes
+      return this.codeOps.previewChanges(changeSet);
+    } catch (error) {
+      this.logger.error(`Code generation failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Apply code changes with validation
+   */
+  async applyChangesWithValidation(
+    changeSet: ChangeSet,
+    skipValidation = false,
+  ): Promise<ApplyResult> {
+    this.logger.log(
+      `Applying changes to ${changeSet.projectName} with ${changeSet.changes.length} changes`,
+    );
+
+    try {
+      // Apply changes with backup
+      const result = await this.codeOps.applyChanges(changeSet, {
+        createBackup: true,
+        skipValidation,
+        gitCommit: false,
+        dryRun: false,
+      });
+
+      // If validation failed, offer rollback
+      if (result.validation && !result.validation.passed) {
+        this.logger.warn(
+          `Validation failed: ${result.validation.errors.length} errors`,
+        );
+      }
+
+      return result;
+    } catch (error) {
+      this.logger.error(`Apply changes failed: ${error.message}`);
+      throw error;
+    }
+  }
+
+  /**
+   * Build a summary of project context for LLM
+   */
+  private buildContextSummary(context: ProjectContext): string {
+    return `
+Project: ${context.registration.name}
+Type: ${context.registration.type || "unknown"}
+Path: ${context.rootPath}
+Files: ${context.files.length}
+Package: ${context.packageJson?.name || "N/A"} v${context.packageJson?.version || "N/A"}
+
+Key dependencies: ${Object.keys(context.packageJson?.dependencies || {})
+        .slice(0, 10)
+        .join(", ")}
+    `.trim();
+  }
+
+  /**
+   * Build enhanced prompt with context
+   */
+  private buildEnhancedPrompt(
+    userMessage: string,
+    contextInfo: string,
+    ragContext: string,
+  ): string {
+    let prompt = userMessage;
+
+    if (contextInfo) {
+      prompt = `${contextInfo}\n\n${prompt}`;
+    }
+
+    if (ragContext) {
+      prompt = `${prompt}\n\nRelevant documentation:\n${ragContext}`;
+    }
+
+    return prompt;
+  }
+
+  /**
+   * Extract suggested actions from agent response
+   */
+  private extractSuggestedActions(
+    output: string,
+    projectName?: string,
+  ): SuggestedAction[] {
+    const actions: SuggestedAction[] = [];
+
+    // Look for code blocks in the output
+    const codeBlockRegex = /```(\w+)?\n([\s\S]+?)```/g;
+    let match;
+
+    while ((match = codeBlockRegex.exec(output)) !== null) {
+      const language = match[1] || "typescript";
+      const code = match[2];
+
+      if (
+        language === "typescript" ||
+        language === "ts" ||
+        language === "javascript" ||
+        language === "js"
+      ) {
+        actions.push({
+          type: "code",
+          description: "Suggested code implementation",
+          code,
+          confidence: 0.7,
+        });
+      }
+    }
+
+    // Look for refactoring suggestions
+    if (output.toLowerCase().includes("refactor")) {
+      actions.push({
+        type: "refactor",
+        description: "Consider refactoring this code",
+        confidence: 0.6,
+      });
+    }
+
+    // Look for testing suggestions
+    if (output.toLowerCase().includes("test")) {
+      actions.push({
+        type: "test",
+        description: "Add tests for this functionality",
+        confidence: 0.7,
+      });
+    }
+
+    return actions;
+  }
+}

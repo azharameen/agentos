@@ -71,7 +71,7 @@ export interface MultiAgentResult {
 export class MultiAgentCoordinatorService {
   private readonly logger = new Logger(MultiAgentCoordinatorService.name);
 
-  constructor(private readonly orchestrator: AgentOrchestratorService) { }
+  constructor(private readonly orchestrator: AgentOrchestratorService) {}
 
   /**
    * Executes a multi-agent task with specified coordination mode.

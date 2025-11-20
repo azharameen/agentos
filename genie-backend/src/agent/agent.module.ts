@@ -24,6 +24,11 @@ import { WorkflowController } from "./workflow.controller";
 import { ContentSafetyController } from "./content-safety.controller";
 import { RagController } from "./rag.controller";
 import { MemoryController } from "./memory.controller";
+import { ProjectContextLoaderService } from "./services/project-context-loader.service";
+import { SourceAnalyzerService } from "./services/source-analyzer.service";
+import { CodeOpsService } from "./services/code-ops.service";
+import { ValidationService } from "./services/validation.service";
+import { AgentManagerService } from "./services/agent-manager.service";
 
 @Module({
   controllers: [
@@ -38,6 +43,11 @@ import { MemoryController } from "./memory.controller";
     AgentService,
     AgentMemoryService,
     ToolRegistryService,
+    ProjectContextLoaderService,
+    SourceAnalyzerService,
+    CodeOpsService,
+    ValidationService,
+    AgentManagerService,
     AgentToolsService,
     AzureOpenAIAdapter,
     AgentOrchestratorService,
