@@ -18,7 +18,7 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 		new Map(messages.map((m) => [m.id, m])).values()
 	);
 	return (
-		<>
+		<div className="message-list-container">
 			{uniqueMessages.map((message, index) => {
 				switch (message.type) {
 					case "text":
@@ -44,6 +44,6 @@ export const MessageList: React.FC<MessageListProps> = ({ messages }) => {
 						return null;
 				}
 			})}
-		</>
+		</div>
 	);
 };
