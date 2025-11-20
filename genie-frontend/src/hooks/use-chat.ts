@@ -1,4 +1,46 @@
+// Move 'use client' directive to the top
 "use client";
+// Helper to process a line from the agent stream
+function handleStreamLine(line: string, sessionId: string, setConversations: any, markdownBuffer: { value: string }, messageId: { value: string | null }) {
+  const trimmed = line.trim();
+  if (!trimmed) return;
+  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
+    try {
+      const event = JSON.parse(trimmed);
+      handleAgentEvent(event, { sessionId, setConversations });
+      if (event.type === "agent_message" && event.content) {
+        markdownBuffer.value += event.content + "\n";
+        messageId.value = event.id ?? null;
+      }
+    } catch (err) {
+      console.warn("Failed to parse event:", trimmed, err);
+    }
+  } else {
+    markdownBuffer.value += trimmed + "\n";
+  }
+}
+
+// Helper to update messages for handleStop
+
+// Helper to add agent message to conversations
+// Helper to update messages for handleStop
+function getStoppedMessages(messages: AnyMessage[]): AnyMessage[] {
+  return messages
+    .filter(m => m.type !== "loading")
+    .map(m => {
+      if ("isStreaming" in m && (m as any).isStreaming) {
+        return { ...m, isStreaming: false };
+      }
+      return m;
+    });
+}
+
+// Helper to add agent message to conversations
+function addAgentMessageToConversations(conversations: Conversation[], sessionId: string, agentMessage: AnyMessage): Conversation[] {
+  return conversations.map(c =>
+    c.id === sessionId ? { ...c, messages: [...c.messages, agentMessage] } : c
+  );
+}
 
 import { useState, useTransition, useRef } from "react";
 import type { Conversation, AnyMessage } from "@/lib/types";
@@ -13,6 +55,7 @@ function getSummaryForPrompt(text: string): string {
 }
 
 export const useChat = () => {
+  // Helper to update messages for handleStop
   const { toast } = useToast();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
@@ -20,14 +63,14 @@ export const useChat = () => {
   const [isPending, startTransition] = useTransition();
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  const activeConversation = conversations.find((c) => c.id === activeConversationId);
+  const activeConversation = conversations.find(c => c.id === activeConversationId);
 
   const handleNewChat = () => {
     const newConversationId = `conv_${Date.now()}`;
     const newConversation: Conversation = {
       id: newConversationId,
       summary: "New Agentic Chat",
-      messages: [],
+      messages: []
     };
     setConversations([newConversation, ...conversations]);
     setActiveConversationId(newConversationId);
@@ -39,19 +82,12 @@ export const useChat = () => {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    setConversations((prev) =>
-      prev.map((c) => {
-        if (c.id === activeConversationId) {
-          return {
-            ...c,
-            messages: c.messages
-              .filter((m) => m.type !== "loading")
-              .map((m) => ("isStreaming" in m && (m as any).isStreaming ? { ...m, isStreaming: false } : m)),
-          };
-        }
-        return c;
-      })
-    );
+    setConversations(prev => prev.map(c =>
+      c.id === activeConversationId
+        ? { ...c, messages: getStoppedMessages(c.messages) }
+        : c
+    ));
+    // Helper to add agent message to conversations
   };
 
   const handleSubmit = (customPrompt?: string) => {
@@ -60,11 +96,11 @@ export const useChat = () => {
 
     handleStop();
 
-    let conversationId = activeConversationId;
+    let sessionId = activeConversationId;
     const userMessageId = `msg_${Date.now()}`;
     const user = {
       name: "User",
-      avatarUrl: "", // This can be configured
+      avatarUrl: "" // This can be configured
     };
     const newUserMessage: AnyMessage = {
       id: userMessageId,
@@ -73,71 +109,66 @@ export const useChat = () => {
       content: currentPrompt,
       name: user.name,
       avatarUrl: user.avatarUrl,
-      createdAt: new Date().toISOString(),
+      createdAt: new Date().toISOString()
     };
 
-    if (!activeConversationId || !conversations.some((c) => c.id === activeConversationId)) {
-      conversationId = `conv_${Date.now()}`;
+    if (!activeConversationId || !conversations.some(c => c.id === activeConversationId)) {
+      sessionId = `session-${Date.now()}`;
       const newConversation: Conversation = {
-        id: conversationId,
+        id: sessionId,
         summary: getSummaryForPrompt(currentPrompt),
-        messages: [newUserMessage],
+        messages: [newUserMessage]
       };
-      setConversations((prev) => [newConversation, ...prev]);
-      setActiveConversationId(conversationId);
+      setConversations(prev => [newConversation, ...prev]);
+      setActiveConversationId(sessionId);
     } else {
-      conversationId = activeConversationId;
-      setConversations((prev) =>
-        prev.map((c) =>
-          c.id === conversationId ? { ...c, messages: [...c.messages, newUserMessage] } : c
+      sessionId = activeConversationId;
+      setConversations(prev =>
+        prev.map(c =>
+          c.id === sessionId ? { ...c, messages: [...c.messages, newUserMessage] } : c
         )
       );
     }
     setPrompt("");
 
-    startTransition(async () => {
-      const abortController = new AbortController();
-      abortControllerRef.current = abortController;
-      const url = `http://localhost:3001/agent/execute`;
-      const payload = {
-        prompt: currentPrompt,
-        model: "gpt-4",
-        conversationId,
-      };
-
+    const processStream = async (url: string, payload: any, abortController: AbortController) => {
       try {
         const response = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
-          signal: abortController.signal,
+          signal: abortController.signal
         });
-
         if (!response.ok || !response.body) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-
-        while (true) {
+        const markdownBuffer = { value: "" };
+        const messageId = { value: null as string | null };
+        let doneReading = false;
+        while (!doneReading) {
           const { value, done } = await reader.read();
-          if (done) break;
-
+          doneReading = done;
           buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\\n");
+          const lines = buffer.split("\n");
           buffer = lines.pop() || "";
-
           for (const line of lines) {
-            if (!line.trim()) continue;
-            try {
-              const event = JSON.parse(line.trim());
-              handleAgentEvent(event, { conversationId, setConversations });
-            } catch (err) {
-              console.warn("Failed to parse event:", line, err);
-            }
+            handleStreamLine(line, sessionId, setConversations, markdownBuffer, messageId);
           }
+        }
+        if (markdownBuffer.value.trim()) {
+          const agentMessage: AnyMessage = {
+            id: messageId.value ?? `msg_agent_${Date.now()}`,
+            role: "assistant",
+            type: "text",
+            content: markdownBuffer.value.trim(),
+            name: "Agent",
+            avatarUrl: "",
+            createdAt: new Date().toISOString()
+          };
+          setConversations(prev => addAgentMessageToConversations(prev, sessionId, agentMessage));
         }
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -145,7 +176,7 @@ export const useChat = () => {
           toast({
             variant: "destructive",
             title: "Error",
-            description: err.message || "An unknown error occurred.",
+            description: err.message || "An unknown error occurred."
           });
         }
       } finally {
@@ -153,6 +184,17 @@ export const useChat = () => {
           abortControllerRef.current = null;
         }
       }
+    };
+    startTransition(() => {
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+      const url = `http://localhost:3001/agent/execute`;
+      const payload = {
+        prompt: currentPrompt,
+        model: "gpt-4",
+        sessionId
+      };
+      processStream(url, payload, abortController);
     });
   };
 
@@ -167,6 +209,6 @@ export const useChat = () => {
     handleSubmit,
     handleNewChat,
     handleStop,
-    activeConversation,
+    activeConversation
   };
 };

@@ -9,7 +9,7 @@ import type { AgentEvent } from './agent-events';
 import type { AnyMessage, Conversation } from './types';
 
 export type EventHandlerState = {
-  conversationId: string;
+  sessionId: string;
   setConversations: React.Dispatch<React.SetStateAction<Conversation[]>>;
 };
 
@@ -31,7 +31,7 @@ export function handleRunStartedEvent(
 
   state.setConversations((prev) =>
     prev.map((c) =>
-      c.id === state.conversationId
+      c.id === state.sessionId
         ? { ...c, messages: [...c.messages, loadingMessage] }
         : c
     )
@@ -51,7 +51,7 @@ export function handleTextMessageContentEvent(
 
   state.setConversations((prev) =>
     prev.map((c) => {
-      if (c.id !== state.conversationId) return c;
+      if (c.id !== state.sessionId) return c;
 
       // Remove loading message if present
       let messages = c.messages.filter((m) => m.type !== 'loading');
@@ -113,7 +113,7 @@ export function handleToolCallStartEvent(
 
   state.setConversations((prev) =>
     prev.map((c) =>
-      c.id === state.conversationId
+      c.id === state.sessionId
         ? { ...c, messages: [...c.messages, toolMessage] }
         : c
     )
@@ -133,7 +133,7 @@ export function handleToolCompleteEvent(
 
   state.setConversations((prev) =>
     prev.map((c) => {
-      if (c.id !== state.conversationId) return c;
+      if (c.id !== state.sessionId) return c;
 
       const messages = c.messages.map((m) => {
         if (m.type === 'tool-call' && m.toolCallId === toolCallId) {
@@ -174,7 +174,7 @@ export function handleContextEvent(
 
   state.setConversations((prev) =>
     prev.map((c) =>
-      c.id === state.conversationId
+      c.id === state.sessionId
         ? { ...c, messages: [...c.messages, contextMessage] }
         : c
     )
@@ -194,7 +194,7 @@ export function handleRunFinishedEvent(
 
   state.setConversations((prev) =>
     prev.map((c) => {
-      if (c.id !== state.conversationId) return c;
+      if (c.id !== state.sessionId) return c;
 
       // Remove loading message if present
       let messages = c.messages.filter((m) => m.type !== 'loading');
@@ -242,7 +242,7 @@ export function handleRunErrorEvent(
 
   state.setConversations((prev) =>
     prev.map((c) => {
-      if (c.id !== state.conversationId) return c;
+      if (c.id !== state.sessionId) return c;
 
       // Remove loading message and add error
       const messages = c.messages.filter((m) => m.type !== 'loading');
@@ -273,7 +273,7 @@ export function handleRunCancelledEvent(
 
   state.setConversations((prev) =>
     prev.map((c) => {
-      if (c.id !== state.conversationId) return c;
+      if (c.id !== state.sessionId) return c;
 
       // Remove loading message and add cancelled message
       const messages = c.messages.filter((m) => m.type !== 'loading');
