@@ -35,9 +35,9 @@ export class AddDocumentsDto {
   })
   @IsString({ each: true })
   @IsNotEmpty({ each: true, message: "Documents cannot be empty" })
-  @MaxLength(50000, {
+  @MaxLength(25000, {
     each: true,
-    message: "Each document must not exceed 50000 characters",
+    message: "Each document must not exceed 25000 characters",
   })
   @IsSanitized({ each: true })
   documents: string[];

@@ -799,18 +799,52 @@ export class UnifiedMemoryService implements OnModuleInit {
   // ============================================================
 
   /**
-   * Lists all session IDs from database
+   * Lists sessions with summary details (paginated)
    */
-  async listSessions(): Promise<string[]> {
+  async listSessions(limit: number = 20, offset: number = 0): Promise<{
+    sessions: Array<{
+      sessionId: string;
+      messageCount: number;
+      lastUpdated: Date;
+      createdAt: Date;
+    }>;
+    total: number;
+  }> {
     if (!this.db) throw new Error("Database not initialized");
 
     try {
-      const rows = this.db.prepare(`
-        SELECT DISTINCT session_id FROM session_messages
-        ORDER BY session_id
-      `).all() as Array<{ session_id: string }>;
+      // Get total count
+      const countResult = this.db.prepare(`
+        SELECT COUNT(DISTINCT session_id) as total FROM session_messages
+      `).get() as { total: number };
 
-      return rows.map(row => row.session_id);
+      // Get paginated sessions with stats
+      const rows = this.db.prepare(`
+        SELECT 
+          session_id,
+          COUNT(*) as message_count,
+          MAX(created_at) as last_updated,
+          MIN(created_at) as created_at
+        FROM session_messages
+        GROUP BY session_id
+        ORDER BY last_updated DESC
+        LIMIT ? OFFSET ?
+      `).all(limit, offset) as Array<{
+        session_id: string;
+        message_count: number;
+        last_updated: string;
+        created_at: string;
+      }>;
+
+      return {
+        sessions: rows.map(row => ({
+          sessionId: row.session_id,
+          messageCount: row.message_count,
+          lastUpdated: new Date(row.last_updated),
+          createdAt: new Date(row.created_at)
+        })),
+        total: countResult.total || 0
+      };
     } catch (error: any) {
       this.logger.error(`Failed to list sessions: ${error.message}`);
       throw error;
@@ -926,14 +960,16 @@ export class UnifiedMemoryService implements OnModuleInit {
 
     try {
       // Export sessions
-      const sessionIds = await this.listSessions();
+      // Get all sessions (high limit)
+      const result = await this.listSessions(1000000, 0);
       const sessions: Array<{
         sessionId: string;
         messages: Array<{ role: string; content: string; metadata: any; created_at: string }>;
         context: Record<string, any>;
       }> = [];
 
-      for (const sessionId of sessionIds) {
+      for (const session of result.sessions) {
+        const sessionId = session.sessionId;
         const messages = this.db.prepare(`
           SELECT role, content, metadata, created_at
           FROM session_messages

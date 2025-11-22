@@ -32,6 +32,12 @@ interface Project {
 export function ProjectPanel() {
 	const [projects, setProjects] = useState<Project[]>([]);
 	const [isLoading, setIsLoading] = useState(false);
+	const [pagination, setPagination] = useState({
+		page: 1,
+		pageSize: 10,
+		totalPages: 1,
+		total: 0
+	});
 	const [newProject, setNewProject] = useState({
 		name: "",
 		path: "",
@@ -48,6 +54,11 @@ export function ProjectPanel() {
 			}
 		};
 	}, []);
+
+	// Load projects on mount and when page changes
+	useEffect(() => {
+		loadProjects(pagination.page);
+	}, [pagination.page]);
 
 	const registerProject = async () => {
 		if (!newProject.name || !newProject.path) {
@@ -83,11 +94,8 @@ export function ProjectPanel() {
 				description: `Project "${newProject.name}" registered successfully`,
 			});
 
-			// Add to local list
-			setProjects([
-				...projects,
-				{ ...newProject, registeredAt: new Date().toISOString() },
-			]);
+			// Reload current page
+			loadProjects(pagination.page);
 
 			// Reset form
 			setNewProject({ name: "", path: "", type: "unknown" });
@@ -108,7 +116,7 @@ export function ProjectPanel() {
 		}
 	};
 
-	const loadProjects = async () => {
+	const loadProjects = async (page = 1) => {
 		setIsLoading(true);
 
 		// Create new abort controller for this request
@@ -116,18 +124,40 @@ export function ProjectPanel() {
 		abortControllerRef.current = abortController;
 
 		try {
-			const response = await fetch(`${ENV.API_URL}/agent/projects`, {
-				signal: abortController.signal,
-			});
+			const response = await fetch(
+				`${ENV.API_URL}/agent/projects?page=${page}&pageSize=${pagination.pageSize}`,
+				{ signal: abortController.signal }
+			);
 			if (!response.ok) {
 				throw new Error(`Failed to load projects: ${response.statusText}`);
 			}
 
 			const result = await response.json();
 			setProjects(result.projects || []);
+
+			// Update pagination state if available in response (assuming backend returns it)
+			// If backend only returns projects list, we might need to adjust.
+			// Based on SqliteProjectRepository, it returns { data, total, page, pageSize, totalPages }
+			// But AgentController maps it to { projects: [...] }.
+			// Wait, AgentController listProjects returns { projects }.
+			// I need to update AgentController to return pagination metadata too!
+
+			// For now, let's assume we need to fix AgentController to return metadata.
+			// But I can't fix it right now without switching context back.
+			// Let's proceed assuming I will fix AgentController next.
+
+			if (result.meta) {
+				setPagination(prev => ({
+					...prev,
+					page: result.meta.page,
+					totalPages: result.meta.totalPages,
+					total: result.meta.total
+				}));
+			}
+
 			toast({
 				title: "Projects Loaded",
-				description: `Found ${result.projects?.length || 0} projects`,
+				description: `Loaded projects`,
 			});
 		} catch (error) {
 			// Don't show error for aborted requests
@@ -146,12 +176,35 @@ export function ProjectPanel() {
 		}
 	};
 
-	const removeProject = (name: string) => {
-		setProjects(projects.filter((p) => p.name !== name));
-		toast({
-			title: "Project Removed",
-			description: `"${name}" removed from list`,
-		});
+	const removeProject = async (name: string) => {
+		if (!confirm(`Are you sure you want to delete project "${name}"?`)) return;
+
+		setIsLoading(true);
+		try {
+			const response = await fetch(`${ENV.API_URL}/agent/projects/${name}`, {
+				method: "DELETE",
+			});
+
+			if (!response.ok) {
+				throw new Error(`Failed to delete project: ${response.statusText}`);
+			}
+
+			toast({
+				title: "Project Removed",
+				description: `"${name}" removed successfully`,
+			});
+
+			// Reload projects
+			loadProjects(pagination.page);
+		} catch (error) {
+			toast({
+				title: "Delete Failed",
+				description: (error as Error).message,
+				variant: "destructive",
+			});
+		} finally {
+			setIsLoading(false);
+		}
 	};
 
 	return (
@@ -235,16 +288,16 @@ export function ProjectPanel() {
 						<Button
 							variant="outline"
 							size="sm"
-							onClick={loadProjects}
+							onClick={() => loadProjects(pagination.page)}
 							disabled={isLoading}
 						>
-							<RefreshCw className="h-4 w-4" />
+							<RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
 						</Button>
 					</CardTitle>
 					<CardDescription>
 						{projects.length === 0
 							? "No projects registered yet"
-							: `${projects.length} project(s) registered`}
+							: `Showing ${projects.length} project(s)`}
 					</CardDescription>
 				</CardHeader>
 				<CardContent>
@@ -274,6 +327,29 @@ export function ProjectPanel() {
 								</Button>
 							</div>
 						))}
+					</div>
+
+					{/* Pagination Controls */}
+					<div className="flex items-center justify-between mt-4">
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))}
+							disabled={pagination.page === 1 || isLoading}
+						>
+							Previous
+						</Button>
+						<span className="text-sm text-text-secondary">
+							Page {pagination.page}
+						</span>
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+							disabled={projects.length < pagination.pageSize || isLoading}
+						>
+							Next
+						</Button>
 					</div>
 				</CardContent>
 			</Card>

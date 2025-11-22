@@ -317,7 +317,11 @@ export class AgentCoordinationService {
 
         // Track output and tools for monitoring
         if (event.type === "TEXT_MESSAGE_CONTENT") {
-          finalOutput = event.data.content;
+          if (event.data.content) {
+            finalOutput = event.data.content;
+          } else if (event.data.delta) {
+            finalOutput += event.data.delta;
+          }
         } else if (event.type === "TOOL_CALL_START") {
           toolsUsedSet.add(event.data.tool);
         } else if (event.type === "RUN_FINISHED") {

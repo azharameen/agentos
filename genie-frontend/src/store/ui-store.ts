@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { devtools, persist } from 'zustand/middleware';
 
-type LeftPanelType = 'sessions' | 'memory' | 'kb' | 'projects' | 'settings' | 'profile';
+type LeftPanelType = 'sessions' | 'memory' | 'kb' | 'projects' | 'analysis' | 'workflows' | 'settings' | 'profile';
 
 interface UIState {
   // Left sidebar

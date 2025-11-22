@@ -5,6 +5,7 @@ import { BaseRetriever } from "@langchain/core/retrievers";
 import { LongTermMemoryEntry } from "../../shared/agent.interface";
 import { v4 as uuidv4 } from "uuid";
 import { SqliteVectorstoreService } from "../memory/sqlite-vectorstore.service";
+import { RecursiveCharacterTextSplitter } from "@langchain/textsplitters";
 
 /**
  * Simple in-memory vector store entry
@@ -127,35 +128,57 @@ export class RagService {
     try {
       const ids: string[] = [];
 
-      // Generate embeddings for all texts (batch if possible)
-      const embeddings = await this.generateEmbeddings(texts);
+      // Split documents into chunks
+      const splitter = new RecursiveCharacterTextSplitter({
+        chunkSize: 1000,
+        chunkOverlap: 200,
+      });
+
+      const allDocs: Document[] = [];
+
+      for (let i = 0; i < texts.length; i++) {
+        const docs = await splitter.createDocuments([texts[i]], [metadata?.[i] || {}]);
+        // Add chunk index to metadata
+        docs.forEach((doc, idx) => {
+          doc.metadata.chunk_index = idx;
+          doc.metadata.original_index = i;
+          doc.metadata.total_chunks = docs.length;
+        });
+        allDocs.push(...docs);
+      }
+
+      const chunkTexts = allDocs.map(d => d.pageContent);
+      const chunkMetadatas = allDocs.map(d => d.metadata);
+
+      // Generate embeddings for all chunks
+      const embeddings = await this.generateEmbeddings(chunkTexts);
 
       if (this.useSqlite && this.sqliteService) {
         const sqliteIds = this.sqliteService.addDocuments(
-          texts,
+          chunkTexts,
           embeddings,
-          metadata,
+          chunkMetadatas,
         );
         // Mirror into documents map
         sqliteIds.forEach((id, i) => {
           const entry: LongTermMemoryEntry = {
             id,
-            content: texts[i],
-            metadata: metadata?.[i] || {},
+            content: chunkTexts[i],
+            metadata: chunkMetadatas[i],
             embedding: embeddings[i],
             createdAt: new Date(),
           };
           this.documents.set(id, entry);
           ids.push(id);
         });
-        this.logger.log(`Added ${ids.length} documents to SQLite vector store`);
+        this.logger.log(`Added ${ids.length} chunks to SQLite vector store`);
         return ids;
       }
 
-      for (let i = 0; i < texts.length; i++) {
+      for (let i = 0; i < chunkTexts.length; i++) {
         const id = uuidv4();
-        const text = texts[i];
-        const meta = metadata?.[i] || {};
+        const text = chunkTexts[i];
+        const meta = chunkMetadatas[i];
         const embedding = embeddings[i];
 
         // Add to in-memory vector store
@@ -177,11 +200,11 @@ export class RagService {
         this.documents.set(id, entry);
         ids.push(id);
 
-        this.logger.debug(`Added document: ${id}`);
+        this.logger.debug(`Added document chunk: ${id}`);
       }
 
       this.logger.log(
-        `Added ${texts.length} documents to in-memory vector store`,
+        `Added ${chunkTexts.length} chunks to in-memory vector store`,
       );
       return ids;
     } catch (error: any) {

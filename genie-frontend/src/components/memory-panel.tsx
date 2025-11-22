@@ -1,87 +1,215 @@
 import React, { useState, useEffect } from "react";
+import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { RefreshCw, Eye, Trash2 } from "lucide-react";
+import ENV from "@/lib/env";
+import { useToast } from "@/hooks/use-toast";
 
-interface MemoryItem {
-  key: string;
-  value: any;
+interface SessionSummary {
+  sessionId: string;
+  messageCount: number;
+  lastUpdated: string;
+  createdAt: string;
+}
+
+interface SessionDetails {
+  messages: Array<{
+    role: string;
+    content: string;
+    created_at: string;
+  }>;
 }
 
 export const MemoryPanel: React.FC = () => {
-  const [searchValue, setSearchValue] = useState("");
-  const [memoryData, setMemoryData] = useState<MemoryItem[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [pagination, setPagination] = useState({
+    page: 1,
+    limit: 10,
+    total: 0
+  });
+  const [selectedSession, setSelectedSession] = useState<string | null>(null);
+  const [sessionDetails, setSessionDetails] = useState<SessionDetails | null>(null);
+  const { toast } = useToast();
+
+  const loadSessions = async (page = 1) => {
+    setLoading(true);
+    try {
+      const offset = (page - 1) * pagination.limit;
+      const response = await fetch(
+        `${ENV.API_URL}/memory/sessions?limit=${pagination.limit}&offset=${offset}`
+      );
+
+      if (!response.ok) throw new Error("Failed to fetch sessions");
+
+      const data = await response.json();
+      setSessions(data.sessions || []);
+      setPagination(prev => ({
+        ...prev,
+        page,
+        total: data.total || 0
+      }));
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadSessionDetails = async (sessionId: string) => {
+    setLoading(true);
+    try {
+      const response = await fetch(`${ENV.API_URL}/memory/sessions/${sessionId}`);
+      if (!response.ok) throw new Error("Failed to fetch details");
+
+      const data = await response.json();
+
+      // Handle different response structures
+      if (Array.isArray(data)) {
+        // If data is directly an array of messages
+        setSessionDetails({ messages: data });
+      } else if (data.messages && Array.isArray(data.messages)) {
+        // If data has a messages property that's an array
+        setSessionDetails({ messages: data.messages });
+      } else {
+        // Fallback: empty array
+        setSessionDetails({ messages: [] });
+        console.warn('Unexpected session details structure:', data);
+      }
+
+      setSelectedSession(sessionId);
+    } catch (err: any) {
+      toast({
+        title: "Error",
+        description: err.message,
+        variant: "destructive",
+      });
+      setSessionDetails({ messages: [] }); // Set empty array on error
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
-    const fetchMemoryData = async () => {
-      try {
-        const response = await fetch("http://localhost:3001/memory/sessions");
-        if (!response.ok) {
-          throw new Error("Failed to fetch memory data");
-        }
-        const data = await response.json();
-        // Assuming the data is an object, convert it to an array of key-value pairs
-        const formattedData = Object.entries(data).map(([key, value]) => ({
-          key,
-          value: JSON.stringify(value, null, 2),
-        }));
-        setMemoryData(formattedData);
-      } catch (err: any) {
-        setError(err.message);
-      } finally {
-        setLoading(false);
-      }
-    };
+    loadSessions(pagination.page);
+  }, [pagination.page]);
 
-    fetchMemoryData();
-  }, []);
-
-  const filteredMemoryData = memoryData.filter((item) =>
-    item.key.toLowerCase().includes(searchValue.toLowerCase())
-  );
+  const totalPages = Math.ceil(pagination.total / pagination.limit);
 
   return (
-    <div className="flex flex-col gap-3">
-      <div className="relative">
-        <span className="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-text-light">
-          search
-        </span>
-        <input
-          className="form-input flex w-full min-w-0 flex-1 resize-none overflow-hidden rounded-lg text-text-main focus:outline-0 focus:ring-1 focus:ring-primary border-border-light bg-background-dark h-10 placeholder:text-text-light pl-10 text-sm font-normal leading-normal"
-          placeholder="Search memory..."
-          value={searchValue}
-          onChange={(e) => setSearchValue(e.target.value)}
-        />
-      </div>
-      <div className="flex border-b border-border-light">
-        <button className="px-4 py-2 text-sm font-medium text-primary border-b-2 border-primary">
-          Short-term
-        </button>
-        <button className="px-4 py-2 text-sm font-medium text-text-light hover:text-text-main">
-          Long-term
-        </button>
-      </div>
-      <div className="flex flex-col gap-3">
-        {loading && <p>Loading...</p>}
-        {error && <p className="text-red-500">{error}</p>}
-        {filteredMemoryData.map((item) => (
-          <div
-            key={item.key}
-            className="p-3 rounded-lg bg-background-dark border border-border-light"
-          >
-            <p className="text-xs font-medium text-text-light uppercase mb-1">
-              {item.key}
-            </p>
-            <pre className="text-sm text-text-main whitespace-pre-wrap">
-              {item.value}
-            </pre>
-          </div>
-        ))}
-        {!loading && filteredMemoryData.length === 0 && (
-          <p className="text-text-light text-sm p-2 text-center">
-            No memory items found.
-          </p>
-        )}
-      </div>
+    <div className="space-y-4 p-4">
+      {selectedSession ? (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Session Details</span>
+              <Button variant="outline" size="sm" onClick={() => setSelectedSession(null)}>
+                Back to List
+              </Button>
+            </CardTitle>
+            <CardDescription>{selectedSession}</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4 max-h-[600px] overflow-y-auto">
+              {sessionDetails?.messages && Array.isArray(sessionDetails.messages) && sessionDetails.messages.length > 0 ? (
+                sessionDetails.messages.map((msg, idx) => (
+                  <div key={idx} className={`p-3 rounded-lg ${msg.role === 'user' ? 'bg-primary/10 ml-8' : 'bg-secondary/10 mr-8'
+                    }`}>
+                    <p className="text-xs font-bold mb-1 uppercase">{msg.role}</p>
+                    <p className="text-sm whitespace-pre-wrap">{msg.content}</p>
+                    <p className="text-xs text-muted-foreground mt-2">
+                      {new Date(msg.created_at).toLocaleString()}
+                    </p>
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground text-center p-4">
+                  No messages found in this session
+                </p>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Memory Sessions</span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => loadSessions(pagination.page)}
+                disabled={loading}
+              >
+                <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              </Button>
+            </CardTitle>
+            <CardDescription>
+              {pagination.total} total sessions
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              {sessions.map((session) => (
+                <div
+                  key={session.sessionId}
+                  className="flex items-center justify-between rounded-lg border border-border-light p-3 hover:bg-background-light"
+                >
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-text-primary truncate">
+                      {session.sessionId}
+                    </p>
+                    <div className="flex gap-4 text-xs text-text-secondary mt-1">
+                      <span>{session.messageCount} messages</span>
+                      <span>Updated: {new Date(session.lastUpdated).toLocaleString()}</span>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => loadSessionDetails(session.sessionId)}
+                  >
+                    <Eye className="h-4 w-4" />
+                  </Button>
+                </div>
+              ))}
+            </div>
+
+            {/* Pagination Controls */}
+            <div className="flex items-center justify-between mt-4">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(p => ({ ...p, page: Math.max(1, p.page - 1) }))}
+                disabled={pagination.page === 1 || loading}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-text-secondary">
+                Page {pagination.page} of {totalPages || 1}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setPagination(p => ({ ...p, page: p.page + 1 }))}
+                disabled={pagination.page >= totalPages || loading}
+              >
+                Next
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 };

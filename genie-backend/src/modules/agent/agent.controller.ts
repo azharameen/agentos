@@ -2,12 +2,14 @@ import {
   Controller,
   Post,
   Get,
+  Delete,
   Body,
   Res,
   HttpStatus,
   Query,
   Logger,
   Req,
+  Inject,
 } from "@nestjs/common";
 import {
   ApiOperation,
@@ -37,8 +39,10 @@ import {
   DependencyGraph,
 } from "../../shared/analysis.interface";
 import { PreviewResult, ApplyResult } from "../../shared/code-ops.interface";
+import { AnalyzeSuggestDto } from "./dto/chat.dto";
 import { ChatResponse } from "../../shared/chat.interface";
-import { ChatRequestDto, AnalyzeSuggestDto } from "./dto/chat.dto";
+import type { IProjectRepository } from './repositories/project.repository.interface';
+import { Project } from './repositories/project.entity';
 
 @ApiTags("agent")
 @Controller("agent")
@@ -51,10 +55,8 @@ export class AgentController {
     private readonly sourceAnalyzer: SourceAnalyzerService,
     private readonly codeOps: CodeOpsService,
     private readonly agentManager: AgentManagerService,
+    @Inject('IProjectRepository') private readonly projectRepository: IProjectRepository,
   ) { }
-
-  // Project management endpoints
-  private readonly registeredProjects = new Map<string, ProjectSummary>();
 
   @Post("projects/register")
   @ApiOperation({
@@ -77,7 +79,8 @@ export class AgentController {
   ): Promise<ProjectRegistrationResponseDto> {
     try {
       // Check if project already registered
-      if (this.registeredProjects.has(dto.name)) {
+      const existing = await this.projectRepository.findByName(dto.name);
+      if (existing) {
         throw new Error(`Project "${dto.name}" is already registered`);
       }
 
@@ -89,8 +92,8 @@ export class AgentController {
         registeredAt: new Date(),
       });
 
-      // Create summary
-      const summary: ProjectSummary = {
+      // Create project entity
+      const project: Project = {
         name: context.registration.name,
         path: context.rootPath,
         type: context.registration.type || ProjectType.UNKNOWN,
@@ -110,17 +113,17 @@ export class AgentController {
         lastScanned: context.lastScanned,
       };
 
-      // Store in registry
-      this.registeredProjects.set(dto.name, summary);
+      // Save to repository
+      await this.projectRepository.save(project);
 
       return {
         status: "success",
         projectName: dto.name,
         summary: {
-          type: summary.type,
-          fileCount: summary.fileCount,
-          mainLanguage: summary.mainLanguage,
-          framework: summary.framework,
+          type: project.type,
+          fileCount: project.fileCount,
+          mainLanguage: project.mainLanguage,
+          framework: project.framework,
         },
       };
     } catch (error) {
@@ -138,9 +141,35 @@ export class AgentController {
     description: "List of registered projects",
     type: ProjectListResponseDto,
   })
-  async listProjects(): Promise<ProjectListResponseDto> {
-    const projects = Array.from(this.registeredProjects.values());
-    return { projects };
+  async listProjects(
+    @Query('page') page = 1,
+    @Query('pageSize') pageSize = 20
+  ): Promise<ProjectListResponseDto> {
+    const result = await this.projectRepository.findAll({
+      page: Number(page),
+      pageSize: Number(pageSize)
+    });
+
+    const projects = result.data.map(p => ({
+      name: p.name,
+      path: p.path,
+      type: p.type,
+      fileCount: p.fileCount,
+      mainLanguage: p.mainLanguage,
+      hasTests: p.hasTests,
+      framework: p.framework,
+      lastScanned: p.lastScanned
+    }));
+
+    return {
+      projects,
+      meta: {
+        total: result.total,
+        page: result.page,
+        pageSize: result.pageSize,
+        totalPages: result.totalPages
+      }
+    };
   }
 
   @Get("projects/:name")
@@ -158,11 +187,42 @@ export class AgentController {
     description: "Project not found",
   })
   async getProject(@Query("name") name: string): Promise<ProjectSummary> {
-    const project = this.registeredProjects.get(name);
+    const project = await this.projectRepository.findByName(name);
     if (!project) {
       throw new Error(`Project "${name}" not found`);
     }
-    return project;
+    return {
+      name: project.name,
+      path: project.path,
+      type: project.type,
+      fileCount: project.fileCount,
+      mainLanguage: project.mainLanguage,
+      hasTests: project.hasTests,
+      framework: project.framework,
+      lastScanned: project.lastScanned
+    };
+  }
+
+  @Delete("projects/:name")
+  @ApiOperation({
+    summary: "Delete a project",
+    description: "Removes a project from the registry",
+  })
+  @ApiQuery({ name: "name", required: true, description: "Project name" })
+  @ApiResponse({
+    status: 200,
+    description: "Project deleted successfully",
+  })
+  @ApiResponse({
+    status: 404,
+    description: "Project not found",
+  })
+  async deleteProject(@Query("name") name: string): Promise<{ status: string }> {
+    const deleted = await this.projectRepository.delete(name);
+    if (!deleted) {
+      throw new Error(`Project "${name}" not found`);
+    }
+    return { status: "success" };
   }
 
   private detectMainLanguage(files: any[]): string {
@@ -362,46 +422,6 @@ export class AgentController {
       res.end();
     }
     return;
-  }
-
-  // Chat endpoint using AgentManager
-  @Post("chat")
-  @ApiOperation({
-    summary: "Chat with the agent about code",
-    description:
-      "Send a message to the agent with optional project context for code-related questions and suggestions",
-  })
-  @ApiBody({
-    schema: {
-      type: "object",
-      properties: {
-        content: { type: "string", description: "User message" },
-        projectName: {
-          type: "string",
-          description: "Optional project name for context",
-        },
-        sessionId: {
-          type: "string",
-          description: "Optional session ID for conversation continuity",
-        },
-        useRAG: {
-          type: "boolean",
-          description: "Whether to use RAG for documentation lookup",
-        },
-      },
-      required: ["content"],
-    },
-  })
-  @ApiResponse({
-    status: 200,
-    description: "Chat response with suggestions",
-  })
-  async chat(@Body() request: ChatRequestDto): Promise<ChatResponse> {
-    return this.agentManager.chat(request.message, {
-      projectName: request.projectName,
-      sessionId: request.sessionId,
-      useRAG: request.useRAG,
-    });
   }
 
   @Post("analyze-suggest")

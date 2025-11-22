@@ -150,6 +150,7 @@ export class LangGraphWorkflowService {
 
       // @ts-ignore - streamEvents might not be in the type definition yet depending on version
       if (typeof workflow.streamEvents === 'function') {
+        let finalOutput = "";
         // @ts-ignore
         const stream = workflow.streamEvents(initialState, {
           version: "v1",
@@ -163,11 +164,12 @@ export class LangGraphWorkflowService {
           if (event.event === "on_chat_model_stream") {
             const chunk = event.data.chunk;
             if (chunk.content) {
+              finalOutput += chunk.content;
               yield {
                 type: "TEXT_MESSAGE_CONTENT",
                 data: {
                   delta: chunk.content,
-                  content: "", // We don't track full content here easily
+                  content: finalOutput,
                 }
               };
             }

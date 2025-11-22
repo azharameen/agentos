@@ -1,4 +1,4 @@
-import { Module } from "@nestjs/common";
+import { Module, forwardRef } from "@nestjs/common";
 import { AgentController } from "./agent.controller";
 import { AgentService } from "./agent.service";
 import { ToolRegistryService } from "./tool-registry.service";
@@ -7,6 +7,7 @@ import { AgentOrchestratorService } from "./agent-orchestrator.service";
 import { AgentPlanningService } from "./agent-planning.service";
 import { AgentExecutionService } from "./agent-execution.service";
 import { AgentCoordinationService } from "./agent-coordination.service";
+import { SqliteProjectRepository } from './repositories/sqlite-project.repository';
 import { LangChainAgentService } from "./langchain-agent.service";
 import { MultiAgentCoordinatorService } from "./multi-agent-coordinator.service";
 import { AgentManagerService } from "./agent-manager.service";
@@ -22,7 +23,7 @@ import { CodeOpsModule } from "../code-ops/code-ops.module";
     SharedModule,
     MemoryModule,
     RagModule,
-    WorkflowModule,
+    forwardRef(() => WorkflowModule),
     SafetyModule,
     CodeOpsModule,
   ],
@@ -45,6 +46,13 @@ import { CodeOpsModule } from "../code-ops/code-ops.module";
     AgentService,
     AgentManagerService,
     MultiAgentCoordinatorService,
+
+    // Repositories
+    SqliteProjectRepository,
+    {
+      provide: 'IProjectRepository',
+      useClass: SqliteProjectRepository,
+    },
   ],
   exports: [
     AgentOrchestratorService,
@@ -53,6 +61,7 @@ import { CodeOpsModule } from "../code-ops/code-ops.module";
     AgentExecutionService,
     ToolRegistryService,
     LangChainAgentService,
+    'IProjectRepository',
   ],
 })
 export class AgentModule { }

@@ -49,6 +49,23 @@ export class ProjectListResponseDto {
     fileCount: number;
     lastScanned: Date;
   }>;
+
+  @ApiProperty({
+    description: "Pagination metadata",
+    type: "object",
+    properties: {
+      total: { type: "number" },
+      page: { type: "number" },
+      pageSize: { type: "number" },
+      totalPages: { type: "number" },
+    },
+  })
+  meta?: {
+    total: number;
+    page: number;
+    pageSize: number;
+    totalPages: number;
+  };
 }
 
 export class ProjectRegistrationResponseDto {

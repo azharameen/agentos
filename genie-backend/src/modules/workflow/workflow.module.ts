@@ -7,8 +7,15 @@ import { SharedModule } from "../shared/shared.module";
 import { MemoryModule } from "../memory/memory.module";
 import { RagModule } from "../rag/rag.module";
 
+import { AgentModule } from "../agent/agent.module";
+
 @Module({
-    imports: [SharedModule, forwardRef(() => MemoryModule), forwardRef(() => RagModule)],
+    imports: [
+        SharedModule,
+        forwardRef(() => MemoryModule),
+        forwardRef(() => RagModule),
+        forwardRef(() => AgentModule)
+    ],
     controllers: [WorkflowController],
     providers: [
         LangGraphWorkflowService,

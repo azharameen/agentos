@@ -18,6 +18,9 @@ import {
 	FolderGit2,
 	Loader2,
 	PanelRight,
+	Code,
+	GitBranch,
+	Shield,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { WelcomeScreen } from "./WelcomeScreen";
@@ -26,6 +29,7 @@ import { PanelErrorBoundary } from "./PanelErrorBoundary";
 import { ComponentLoader, PanelLoader } from "./loading/ComponentLoader";
 import { ActivityBar, ActivityItem } from "./layout/ActivityBar";
 import { SidePanel } from "./layout/SidePanel";
+import { RightPanelContent } from "./RightPanelContent";
 
 /**
  * PERFORMANCE: Lazy load heavy components to reduce initial bundle size
@@ -76,10 +80,35 @@ const ContextPanel = dynamic(
 	}
 );
 
+const ContentSafetyPanel = dynamic(
+	() =>
+		import("./ContentSafetyPanel").then((mod) => ({ default: mod.ContentSafetyPanel })),
+	{
+		loading: () => <PanelLoader message="Loading safety..." />,
+		ssr: false,
+	}
+);
+
 const ProjectPanel = dynamic(
 	() => import("./ProjectPanel").then((mod) => ({ default: mod.ProjectPanel })),
 	{
 		loading: () => <PanelLoader message="Loading project..." />,
+		ssr: false,
+	}
+);
+
+const CodeAnalysisPanel = dynamic(
+	() => import("./CodeAnalysisPanel").then((mod) => ({ default: mod.CodeAnalysisPanel })),
+	{
+		loading: () => <PanelLoader message="Loading analysis..." />,
+		ssr: false,
+	}
+);
+
+const WorkflowPanel = dynamic(
+	() => import("./WorkflowPanel").then((mod) => ({ default: mod.WorkflowPanel })),
+	{
+		loading: () => <PanelLoader message="Loading workflows..." />,
 		ssr: false,
 	}
 );
@@ -107,6 +136,8 @@ const ProfilePanel = dynamic(
 		ssr: false,
 	}
 );
+
+
 
 export function GenieUI() {
 	const {
@@ -174,6 +205,18 @@ export function GenieUI() {
 				label: "Projects",
 				onClick: () => toggleLeftSidebar("projects"),
 			},
+			{
+				id: "analysis",
+				icon: Code,
+				label: "Code Analysis",
+				onClick: () => toggleLeftSidebar("analysis"),
+			},
+			{
+				id: "workflows",
+				icon: GitBranch,
+				label: "Workflows",
+				onClick: () => toggleLeftSidebar("workflows"),
+			},
 		],
 		[toggleLeftSidebar]
 	);
@@ -200,6 +243,10 @@ export function GenieUI() {
 				return "Knowledge Base";
 			case "projects":
 				return "Projects";
+			case "analysis":
+				return "Code Analysis";
+			case "workflows":
+				return "Workflows";
 			case "settings":
 				return "Settings";
 			case "profile":
@@ -285,14 +332,10 @@ export function GenieUI() {
 			{/* Right Side Panel */}
 			<SidePanel
 				isOpen={isRightPanelOpen}
-				title="Context"
+				title="Tools"
 				position="right"
 			>
-				<PanelErrorBoundary panelName="Context Panel">
-					<Suspense fallback={<PanelLoader message="Loading context..." />}>
-						<ContextPanel setRightPanelOpen={setRightPanelOpen} />
-					</Suspense>
-				</PanelErrorBoundary>
+				<RightPanelContent setRightPanelOpen={setRightPanelOpen} />
 			</SidePanel>
 
 			{/* Right Activity Bar */}
@@ -361,6 +404,20 @@ const SidebarContent = ({
 				<PanelErrorBoundary panelName="Projects">
 					<Suspense fallback={<PanelLoader message="Loading project..." />}>
 						<ProjectPanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "analysis" && (
+				<PanelErrorBoundary panelName="Code Analysis">
+					<Suspense fallback={<PanelLoader message="Loading analysis..." />}>
+						<CodeAnalysisPanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "workflows" && (
+				<PanelErrorBoundary panelName="Workflows">
+					<Suspense fallback={<PanelLoader message="Loading workflows..." />}>
+						<WorkflowPanel />
 					</Suspense>
 				</PanelErrorBoundary>
 			)}

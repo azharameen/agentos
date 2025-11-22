@@ -1,11 +1,19 @@
-import { Controller, Get, Param } from "@nestjs/common";
-import { ApiOperation, ApiResponse, ApiTags } from "@nestjs/swagger";
+import { Controller, Get, Post, Param, Body, Res, Req, HttpStatus, NotFoundException, Logger } from "@nestjs/common";
+import { ApiOperation, ApiResponse, ApiTags, ApiBody } from "@nestjs/swagger";
 import { WorkflowVersioningService } from "./workflow-versioning.service";
+import { AgentCoordinationService } from "../agent/agent-coordination.service";
+import { ExecuteWorkflowDto } from "./dto/workflow.dto";
+import type { Response, Request } from "express";
 
 @ApiTags("Workflow")
 @Controller("workflow")
 export class WorkflowController {
-  constructor(private readonly workflowVersioning: WorkflowVersioningService) { }
+  private readonly logger = new Logger(WorkflowController.name);
+
+  constructor(
+    private readonly workflowVersioning: WorkflowVersioningService,
+    private readonly agentCoordination: AgentCoordinationService,
+  ) { }
 
   @Get("workflows")
   @ApiOperation({ summary: "List all workflow names" })
@@ -64,5 +72,96 @@ export class WorkflowController {
       version1,
       version2,
     );
+  }
+
+  @Post("workflows/:name/execute")
+  @ApiOperation({ summary: "Execute a named workflow" })
+  @ApiBody({ type: ExecuteWorkflowDto })
+  @ApiResponse({ status: 200, description: "Workflow execution result." })
+  async executeWorkflow(
+    @Param("name") name: string,
+    @Body() dto: ExecuteWorkflowDto,
+  ) {
+    // Get workflow config
+    const version = dto.version
+      ? await this.workflowVersioning.getWorkflowVersion(name, dto.version)
+      : await this.workflowVersioning.getLatestWorkflowVersion(name);
+
+    if (!version) {
+      throw new NotFoundException(`Workflow "${name}" not found`);
+    }
+
+    const sessionId = dto.sessionId || `session-${Date.now()}`;
+
+    // Execute using coordination service
+    return await this.agentCoordination.executeTask(
+      dto.prompt,
+      sessionId,
+      {
+        ...version.configuration,
+        workflowVersion: String(version.version),
+      }
+    );
+  }
+
+  @Post("workflows/:name/execute/stream")
+  @ApiOperation({ summary: "Stream execution of a named workflow" })
+  @ApiBody({ type: ExecuteWorkflowDto })
+  @ApiResponse({ status: 200, description: "Streaming workflow execution." })
+  async executeWorkflowStream(
+    @Param("name") name: string,
+    @Body() dto: ExecuteWorkflowDto,
+    @Res() res: Response,
+    @Req() req: Request,
+  ) {
+    // Get workflow config
+    const version = dto.version
+      ? await this.workflowVersioning.getWorkflowVersion(name, dto.version)
+      : await this.workflowVersioning.getLatestWorkflowVersion(name);
+
+    if (!version) {
+      throw new NotFoundException(`Workflow "${name}" not found`);
+    }
+
+    const sessionId = dto.sessionId || `session-${Date.now()}`;
+
+    // Always stream response
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+
+    try {
+      const abortController = new AbortController();
+      const signal = abortController.signal;
+
+      // Handle client disconnection
+      req.on("close", () => {
+        this.logger.log(`Client disconnected for session ${sessionId}`);
+        abortController.abort();
+      });
+
+      const stream = this.agentCoordination.executeTaskStream(
+        dto.prompt,
+        sessionId,
+        {
+          ...version.configuration,
+          workflowVersion: String(version.version),
+        },
+        signal,
+      );
+
+      for await (const chunk of stream) {
+        res.write(JSON.stringify(chunk) + "\n");
+      }
+      res.end();
+    } catch (err) {
+      res.status(HttpStatus.INTERNAL_SERVER_ERROR);
+      res.write(
+        JSON.stringify({
+          type: "RUN_ERROR",
+          data: { error: (err as Error).message },
+        }) + "\n",
+      );
+      res.end();
+    }
   }
 }
