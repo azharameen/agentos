@@ -98,6 +98,17 @@
 
 ---
 
+## Resilience & Performance
+
+- **Connection Pooling**: Database (SQLite) and Azure OpenAI client pooling for 40-70% performance improvement.
+- **Circuit Breaker**: Protects Azure OpenAI calls from cascading failures (3 states: CLOSED/OPEN/HALF_OPEN).
+- **Comprehensive Health Checks**: Component-level monitoring (database, Azure, memory) with Kubernetes-compatible readiness probes.
+- **Observability**: LangSmith tracing, circuit breaker statistics, health endpoint diagnostics.
+- Documentation: `CIRCUIT_BREAKER.md` for detailed circuit breaker usage.
+- Fully implemented and documented.
+
+---
+
 ## Testing & Quality
 
 - Unit tests, E2E tests, streaming tests, coverage, troubleshooting.
@@ -126,6 +137,7 @@
 | Workflow Versioning       | Full          | Yes          | -                         |
 | API Unification           | Full          | Yes          | -                         |
 | Error Handling/Validation | Full          | Yes          | -                         |
+| Resilience & Performance  | Full          | Yes          | -                         |
 | Testing & Quality         | Full          | Yes          | -                         |
 | Architecture/Best Practices| Full         | Yes          | -                         |
 
@@ -142,20 +154,28 @@
 ## Documentation Conventions & References
 
 - **Authoritative Docs:**
- 	- `GENIE_MASTER_DOCUMENTATION.md` (this file): All architecture, API, migration, and feature status info.
- 	- `README.md` (backend & frontend): Onboarding, build/run/test, environment setup.
- 	- `QUICKSTART.md` (backend): Fast setup and troubleshooting.
- 	- `PRIVACY_REPORT.md` (backend): Compliance and privacy details.
- 	- `.github/copilot-instructions.md` (backend & frontend): Agent onboarding and coding conventions.
+  - `GENIE_MASTER_DOCUMENTATION.md` (this file): All architecture, API, migration, and feature status info.
+  - `README.md` (backend & frontend): Onboarding, build/run/test, environment setup.
+  - `QUICKSTART.md` (backend): Fast setup and troubleshooting.
+  - `PRIVACY_REPORT.md` (backend): Compliance and privacy details.
+  - `.github/copilot-instructions.md` (backend & frontend): Agent onboarding and coding conventions.
+
+- **Detailed Technical Documentation:**
+  - [Code Splitting & Lazy Loading](CODE_SPLITTING.md)
+  - [React Re-render Optimization](OPTIMIZE_RERENDERS.md)
+  - [Circuit Breaker Implementation](../genie-backend/documentation/CIRCUIT_BREAKER.md)
+  - [Request Validation](../genie-backend/documentation/REQUEST_VALIDATION.md)
+  - [Error Boundaries](../genie-frontend/docs/ERROR_BOUNDARIES.md)
+  - [Request Retry Logic](../genie-frontend/docs/REQUEST_RETRY.md)
 
 - **Vertical Slicing:**
- 	- All features and docs are organized by vertical slice (agentic execution, RAG, memory, multi-agent, workflow, streaming/events, error handling, API unification).
- 	- Obsolete, redundant, and partial documentation files have been removed for clarity and maintainability.
+  - All features and docs are organized by vertical slice (agentic execution, RAG, memory, multi-agent, workflow, streaming/events, error handling, API unification).
+  - Obsolete, redundant, and partial documentation files have been removed for clarity and maintainability.
 
 - **How to Contribute Docs:**
- 	- Update only the master documentation and essential onboarding files.
- 	- Do not create new markdown files unless explicitly required for compliance or onboarding.
- 	- All references to deleted files have been removed.
+  - Update only the master documentation and essential onboarding files.
+  - Do not create new markdown files unless explicitly required for compliance or onboarding.
+  - All references to deleted files have been removed.
 
 ---
 

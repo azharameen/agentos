@@ -1,51 +1,26 @@
-// Move 'use client' directive to the top
 "use client";
-// Helper to process a line from the agent stream
-function handleStreamLine(line: string, sessionId: string, setConversations: any, markdownBuffer: { value: string }, messageId: { value: string | null }) {
-  const trimmed = line.trim();
-  if (!trimmed) return;
-  if (trimmed.startsWith("{") && trimmed.endsWith("}")) {
-    try {
-      const event = JSON.parse(trimmed);
-      handleAgentEvent(event, { sessionId, setConversations });
-      if (event.type === "agent_message" && event.content) {
-        markdownBuffer.value += event.content + "\n";
-        messageId.value = event.id ?? null;
-      }
-    } catch (err) {
-      console.warn("Failed to parse event:", trimmed, err);
-    }
-  } else {
-    markdownBuffer.value += trimmed + "\n";
-  }
-}
 
-// Helper to update messages for handleStop
+import { useTransition, useRef, useEffect, useCallback } from "react";
+import type { AnyMessage, Conversation } from "@/lib/types";
+import { useToast } from "@/hooks/use-toast";
+import { handleAgentEvent } from "@/lib/event-handlers";
+import { validateMessage } from "@/lib/validation";
+import { useChatStore } from "@/store/chat-store";
+import { sessionManager } from "@/lib/session-manager";
 
-// Helper to add agent message to conversations
 // Helper to update messages for handleStop
 function getStoppedMessages(messages: AnyMessage[]): AnyMessage[] {
   return messages
     .filter(m => m.type !== "loading")
     .map(m => {
-      if ("isStreaming" in m && (m as any).isStreaming) {
-        return { ...m, isStreaming: false };
+      if (m.type === 'text' || m.type === 'tool-call') {
+        if ('isStreaming' in m && m.isStreaming) {
+          return { ...m, isStreaming: false };
+        }
       }
       return m;
     });
 }
-
-// Helper to add agent message to conversations
-function addAgentMessageToConversations(conversations: Conversation[], sessionId: string, agentMessage: AnyMessage): Conversation[] {
-  return conversations.map(c =>
-    c.id === sessionId ? { ...c, messages: [...c.messages, agentMessage] } : c
-  );
-}
-
-import { useState, useTransition, useRef } from "react";
-import type { Conversation, AnyMessage } from "@/lib/types";
-import { useToast } from "@/hooks/use-toast";
-import { handleAgentEvent } from "@/lib/event-handlers";
 
 function getSummaryForPrompt(text: string): string {
   if (text.length < 40) {
@@ -54,46 +29,101 @@ function getSummaryForPrompt(text: string): string {
   return text.split(" ").slice(0, 5).join(" ") + "...";
 }
 
+/**
+ * REFACTORED: Now uses Zustand store instead of local state
+ * Eliminates prop drilling and centralizes state management
+ */
 export const useChat = () => {
-  // Helper to update messages for handleStop
   const { toast } = useToast();
-  const [conversations, setConversations] = useState<Conversation[]>([]);
-  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
-  const [prompt, setPrompt] = useState("");
   const [isPending, startTransition] = useTransition();
   const abortControllerRef = useRef<AbortController | null>(null);
+  const currentSessionRef = useRef<string | null>(null);
 
-  const activeConversation = conversations.find(c => c.id === activeConversationId);
+  // Zustand store
+  const {
+    conversations,
+    activeConversationId,
+    prompt,
+    setConversations,
+    setActiveConversationId,
+    setPrompt,
+    getActiveConversation,
+    addMessage,
+    createConversation,
+    deleteConversation,
+    renameConversation,
+    clearAllConversations,
+    loadConversations,
+    selectedModel,
+    selectedAgent,
+    selectedTools
+  } = useChatStore();
 
-  const handleNewChat = () => {
-    const newConversationId = `conv_${Date.now()}`;
-    const newConversation: Conversation = {
-      id: newConversationId,
-      summary: "New Agentic Chat",
-      messages: []
+  // Load conversations on mount
+  useEffect(() => {
+    loadConversations();
+
+    // Cleanup abort controller on unmount
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+        abortControllerRef.current = null;
+      }
     };
-    setConversations([newConversation, ...conversations]);
-    setActiveConversationId(newConversationId);
-    setPrompt("");
-  };
+  }, [loadConversations]);
 
-  const handleStop = () => {
+  // Abort stream when switching sessions
+  useEffect(() => {
+    if (activeConversationId && currentSessionRef.current && activeConversationId !== currentSessionRef.current) {
+      handleStop();
+    }
+  }, [activeConversationId]);
+
+  const activeConversation = getActiveConversation();
+
+  const handleNewChat = useCallback(() => {
+    createConversation("New Agentic Chat");
+    setPrompt("");
+  }, [createConversation, setPrompt]);
+
+  const handleStop = useCallback(() => {
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
-    setConversations(prev => prev.map(c =>
-      c.id === activeConversationId
-        ? { ...c, messages: getStoppedMessages(c.messages) }
-        : c
-    ));
-    // Helper to add agent message to conversations
-  };
+    if (activeConversationId) {
+      const conversation = conversations.find(c => c.id === activeConversationId);
+      if (conversation) {
+        const stoppedMessages = getStoppedMessages(conversation.messages);
+        setConversations(
+          conversations.map(c =>
+            c.id === activeConversationId ? { ...c, messages: stoppedMessages } : c
+          )
+        );
+      }
+    }
+  }, [activeConversationId, conversations, setConversations]);
 
-  const handleSubmit = (customPrompt?: string) => {
+  const handleSubmit = useCallback((customPrompt?: string) => {
     const currentPrompt = customPrompt || prompt;
-    if (!currentPrompt.trim() || isPending) return;
 
+    // Validate input
+    const validation = validateMessage(currentPrompt);
+    if (!validation.isValid) {
+      toast({
+        variant: "destructive",
+        title: "Invalid Input",
+        description: validation.error || "Please check your message"
+      });
+      return;
+    }
+
+    if (isPending) return;
+
+    // Use sanitized input
+    const sanitizedPrompt = validation.sanitized!;
+
+    // Abort any existing stream
     handleStop();
 
     let sessionId = activeConversationId;
@@ -106,32 +136,38 @@ export const useChat = () => {
       id: userMessageId,
       role: "user",
       type: "text",
-      content: currentPrompt,
+      content: sanitizedPrompt,
       name: user.name,
       avatarUrl: user.avatarUrl,
       createdAt: new Date().toISOString()
     };
 
     if (!activeConversationId || !conversations.some(c => c.id === activeConversationId)) {
-      sessionId = `session-${Date.now()}`;
-      const newConversation: Conversation = {
-        id: sessionId,
-        summary: getSummaryForPrompt(currentPrompt),
-        messages: [newUserMessage]
-      };
-      setConversations(prev => [newConversation, ...prev]);
+      // Create new conversation with user message
+      const newConversation = sessionManager.createSession(getSummaryForPrompt(sanitizedPrompt));
+      newConversation.messages.push(newUserMessage);
+      sessionId = newConversation.id;
+      setConversations((prev: Conversation[]) => [newConversation, ...prev]);
       setActiveConversationId(sessionId);
     } else {
+      // Add message to existing conversation
       sessionId = activeConversationId;
-      setConversations(prev =>
-        prev.map(c =>
-          c.id === sessionId ? { ...c, messages: [...c.messages, newUserMessage] } : c
-        )
-      );
+      addMessage(sessionId, newUserMessage);
     }
     setPrompt("");
 
     const processStream = async (url: string, payload: any, abortController: AbortController) => {
+      // Add timeout
+      const timeoutMs = Number.parseInt(process.env.NEXT_PUBLIC_REQUEST_TIMEOUT_MS || '30000', 10);
+      const timeoutId = setTimeout(() => {
+        abortController.abort();
+        toast({
+          variant: "destructive",
+          title: "Request Timeout",
+          description: "The request took too long to complete. Please try again."
+        });
+      }, timeoutMs);
+
       try {
         const response = await fetch(url, {
           method: "POST",
@@ -139,36 +175,52 @@ export const useChat = () => {
           body: JSON.stringify(payload),
           signal: abortController.signal
         });
+
+        clearTimeout(timeoutId);
         if (!response.ok || !response.body) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const reader = response.body.getReader();
         const decoder = new TextDecoder();
         let buffer = "";
-        const markdownBuffer = { value: "" };
-        const messageId = { value: null as string | null };
         let doneReading = false;
+
         while (!doneReading) {
           const { value, done } = await reader.read();
           doneReading = done;
-          buffer += decoder.decode(value, { stream: true });
-          const lines = buffer.split("\n");
-          buffer = lines.pop() || "";
-          for (const line of lines) {
-            handleStreamLine(line, sessionId, setConversations, markdownBuffer, messageId);
+
+          if (value) {
+            buffer += decoder.decode(value, { stream: true });
+          }
+
+          // Process buffer line by line
+          let newlineIndex;
+          while ((newlineIndex = buffer.indexOf("\n")) !== -1) {
+            const line = buffer.slice(0, newlineIndex).trim();
+            buffer = buffer.slice(newlineIndex + 1);
+
+            if (!line) continue;
+
+            try {
+              const event = JSON.parse(line);
+              handleAgentEvent(event, { sessionId: sessionId!, setConversations });
+            } catch (err) {
+              console.warn("Failed to parse event:", line, err);
+              // If parsing fails, it might be a partial line that got flushed? 
+              // But we split by newline, so it should be a complete line.
+              // Unless the JSON itself contains newlines (which NDJSON shouldn't have outside strings).
+            }
           }
         }
-        if (markdownBuffer.value.trim()) {
-          const agentMessage: AnyMessage = {
-            id: messageId.value ?? `msg_agent_${Date.now()}`,
-            role: "assistant",
-            type: "text",
-            content: markdownBuffer.value.trim(),
-            name: "Agent",
-            avatarUrl: "",
-            createdAt: new Date().toISOString()
-          };
-          setConversations(prev => addAgentMessageToConversations(prev, sessionId, agentMessage));
+
+        // Process any remaining buffer if it's a valid JSON
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim());
+            handleAgentEvent(event, { sessionId: sessionId!, setConversations });
+          } catch (err) {
+            // Ignore incomplete end
+          }
         }
       } catch (err: any) {
         if (err.name !== "AbortError") {
@@ -188,15 +240,53 @@ export const useChat = () => {
     startTransition(() => {
       const abortController = new AbortController();
       abortControllerRef.current = abortController;
-      const url = `http://localhost:3001/agent/execute`;
+      currentSessionRef.current = sessionId;
+
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+      const url = `${apiUrl}/agent/execute`;
       const payload = {
-        prompt: currentPrompt,
-        model: "gpt-4",
+        prompt: sanitizedPrompt,
+        model: selectedModel,
+        agent: selectedAgent,
+        specificTools: selectedTools && selectedTools.length > 0 ? selectedTools : undefined,
         sessionId
       };
       processStream(url, payload, abortController);
     });
-  };
+  }, [prompt, isPending, activeConversationId, conversations, handleStop, toast, addMessage, setConversations, setActiveConversationId, selectedModel, selectedAgent, selectedTools]);
+
+  const handleDeleteSession = useCallback((sessionId: string) => {
+    deleteConversation(sessionId);
+  }, [deleteConversation]);
+
+  const handleRenameSession = useCallback((sessionId: string, newSummary: string) => {
+    renameConversation(sessionId, newSummary);
+  }, [renameConversation]);
+
+  const handleClearAllSessions = useCallback(() => {
+    clearAllConversations();
+  }, [clearAllConversations]);
+
+  const handleReload = useCallback(() => {
+    if (!activeConversationId) return;
+
+    const conversation = conversations.find(c => c.id === activeConversationId);
+    if (!conversation) return;
+
+    // Find last user message
+    const lastUserMessage = [...conversation.messages].reverse().find(m => m.role === "user");
+    if (lastUserMessage && lastUserMessage.content) {
+      // Remove any subsequent assistant messages (including error/streaming)
+      const userMsgIndex = conversation.messages.findIndex(m => m.id === lastUserMessage.id);
+      if (userMsgIndex !== -1) {
+        const newMessages = conversation.messages.slice(0, userMsgIndex + 1);
+        setConversations(prev => prev.map(c => c.id === activeConversationId ? { ...c, messages: newMessages } : c));
+
+        // Resubmit
+        handleSubmit(lastUserMessage.content as string);
+      }
+    }
+  }, [activeConversationId, conversations, handleSubmit, setConversations]);
 
   return {
     conversations,
@@ -209,6 +299,16 @@ export const useChat = () => {
     handleSubmit,
     handleNewChat,
     handleStop,
-    activeConversation
+    handleReload,
+    activeConversation,
+    handleDeleteSession,
+    handleRenameSession,
+    handleClearAllSessions,
+    selectedModel: useChatStore((state) => state.selectedModel),
+    setSelectedModel: useChatStore((state) => state.setSelectedModel),
+    selectedAgent: useChatStore((state) => state.selectedAgent),
+    setSelectedAgent: useChatStore((state) => state.setSelectedAgent),
+    selectedTools: useChatStore((state) => state.selectedTools),
+    setSelectedTools: useChatStore((state) => state.setSelectedTools),
   };
 };

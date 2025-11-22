@@ -1,15 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
+import { Suspense, useEffect, useRef, useMemo } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { useEffect, useRef } from "react";
-import { MessageList } from "./MessageList";
-import { SessionPanel } from "./session-panel";
-import { MemoryPanel } from "./memory-panel";
-import { KnowledgeBasePanel } from "./knowledge-base-panel";
-import { ContextPanel } from "./context-panel";
-import { SidebarLayout } from "./layout/SidebarLayout";
-import { useUIState } from "@/context/ui-state-context";
+import { useUIStore } from "@/store/ui-store";
 import { useChat } from "@/hooks/use-chat";
 import {
 	MessageCircle,
@@ -20,11 +15,98 @@ import {
 	Mic,
 	Paperclip,
 	Send,
-	PanelRightClose,
-	PanelLeftClose,
+	FolderGit2,
+	Loader2,
+	PanelRight,
 } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { WelcomeScreen } from "./WelcomeScreen";
+import { ChatErrorBoundary } from "./ChatErrorBoundary";
+import { PanelErrorBoundary } from "./PanelErrorBoundary";
+import { ComponentLoader, PanelLoader } from "./loading/ComponentLoader";
+import { ActivityBar, ActivityItem } from "./layout/ActivityBar";
+import { SidePanel } from "./layout/SidePanel";
+
+/**
+ * PERFORMANCE: Lazy load heavy components to reduce initial bundle size
+ * These components are large and can be loaded on-demand
+ */
+const MessageList = dynamic(
+	() => import("./MessageList").then((mod) => ({ default: mod.MessageList })),
+	{
+		loading: () => <ComponentLoader message="Loading messages..." />,
+		ssr: false,
+	}
+);
+
+const SessionPanel = dynamic(
+	() =>
+		import("./session-panel").then((mod) => ({ default: mod.SessionPanel })),
+	{
+		loading: () => <PanelLoader message="Loading sessions..." />,
+		ssr: false,
+	}
+);
+
+const MemoryPanel = dynamic(
+	() => import("./memory-panel").then((mod) => ({ default: mod.MemoryPanel })),
+	{
+		loading: () => <PanelLoader message="Loading memory..." />,
+		ssr: false,
+	}
+);
+
+const KnowledgeBasePanel = dynamic(
+	() =>
+		import("./knowledge-base-panel").then((mod) => ({
+			default: mod.KnowledgeBasePanel,
+		})),
+	{
+		loading: () => <PanelLoader message="Loading knowledge base..." />,
+		ssr: false,
+	}
+);
+
+const ContextPanel = dynamic(
+	() =>
+		import("./context-panel").then((mod) => ({ default: mod.ContextPanel })),
+	{
+		loading: () => <PanelLoader message="Loading context..." />,
+		ssr: false,
+	}
+);
+
+const ProjectPanel = dynamic(
+	() => import("./ProjectPanel").then((mod) => ({ default: mod.ProjectPanel })),
+	{
+		loading: () => <PanelLoader message="Loading project..." />,
+		ssr: false,
+	}
+);
+
+import { ChatFooter } from "./ChatFooter";
+
+const SettingsPanel = dynamic(
+	() =>
+		import("./settings/SettingsSidebar").then((mod) => ({
+			default: mod.SettingsSidebar,
+		})),
+	{
+		loading: () => <PanelLoader message="Loading settings..." />,
+		ssr: false,
+	}
+);
+
+const ProfilePanel = dynamic(
+	() =>
+		import("./ProfilePanel").then((mod) => ({
+			default: mod.ProfilePanel,
+		})),
+	{
+		loading: () => <PanelLoader message="Loading profile..." />,
+		ssr: false,
+	}
+);
 
 export function GenieUI() {
 	const {
@@ -33,23 +115,24 @@ export function GenieUI() {
 		isRightPanelOpen,
 		toggleLeftSidebar,
 		setRightPanelOpen,
-	} = useUIState();
+	} = useUIStore();
 
 	const {
 		conversations,
-		setConversations,
-		activeSessionId,
-		setActiveSessionId,
-		prompt,
-		setPrompt,
-		isPending,
+		activeConversationId,
+		setActiveConversationId,
 		handleSubmit,
 		handleNewChat,
 		activeConversation,
+		handleDeleteSession,
+		handleRenameSession,
 	} = useChat();
 
+	// Alias for consistency with UI naming
+	const activeSessionId = activeConversationId;
+	const setActiveSessionId = setActiveConversationId;
+
 	const isMobile = useIsMobile();
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
 
 	useEffect(() => {
 		if (isMobile) {
@@ -65,211 +148,273 @@ export function GenieUI() {
 		}
 	};
 
+	const leftActivityItems: ActivityItem[] = useMemo(
+		() => [
+			{
+				id: "sessions",
+				icon: MessageCircle,
+				label: "Sessions",
+				onClick: () => toggleLeftSidebar("sessions"),
+			},
+			{
+				id: "memory",
+				icon: BrainCircuit,
+				label: "Memory",
+				onClick: () => toggleLeftSidebar("memory"),
+			},
+			{
+				id: "kb",
+				icon: Book,
+				label: "Knowledge Base",
+				onClick: () => toggleLeftSidebar("kb"),
+			},
+			{
+				id: "projects",
+				icon: FolderGit2,
+				label: "Projects",
+				onClick: () => toggleLeftSidebar("projects"),
+			},
+		],
+		[toggleLeftSidebar]
+	);
+
+	const rightActivityItems: ActivityItem[] = useMemo(
+		() => [
+			{
+				id: "context",
+				icon: PanelRight,
+				label: "Context",
+				onClick: () => setRightPanelOpen(!isRightPanelOpen),
+			},
+		],
+		[isRightPanelOpen, setRightPanelOpen]
+	);
+
+	const getPanelTitle = (panel: string | null) => {
+		switch (panel) {
+			case "sessions":
+				return "Sessions";
+			case "memory":
+				return "Memory";
+			case "kb":
+				return "Knowledge Base";
+			case "projects":
+				return "Projects";
+			case "settings":
+				return "Settings";
+			case "profile":
+				return "Profile";
+			default:
+				return "";
+		}
+	};
+
 	return (
-		<div className="relative flex h-screen w-full flex-col overflow-hidden">
-			<div className="flex h-full flex-1">
-				<aside className="flex h-full flex-col border-r border-border-light bg-background-light p-2 z-20 shrink-0">
-					<div className="flex flex-col items-center gap-2">
-						<button
-							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "sessions" && isLeftSidebarOpen
-									? "text-white bg-muted-blue-500"
-									: "text-text-light hover:bg-background-dark"
-							}`}
-							onClick={() => toggleLeftSidebar("sessions")}
-							aria-label="Toggle Sessions Panel"
-						>
-							<MessageCircle size={24} />
-						</button>
-						<button
-							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "memory" && isLeftSidebarOpen
-									? "text-white bg-muted-blue-500"
-									: "text-text-light hover:bg-background-dark"
-							}`}
-							onClick={() => toggleLeftSidebar("memory")}
-							aria-label="Toggle Memory Panel"
-						>
-							<BrainCircuit size={24} />
-						</button>
-						<button
-							className={`flex items-center justify-center rounded-lg p-2.5 ${
-								activeLeftPanel === "kb" && isLeftSidebarOpen
-									? "text-white bg-muted-blue-500"
-									: "text-text-light hover:bg-background-dark"
-							}`}
-							onClick={() => toggleLeftSidebar("kb")}
-							aria-label="Toggle Knowledge Base Panel"
-						>
-							<Book size={24} />
-						</button>
-					</div>
-					<div className="mt-auto flex flex-col items-center gap-2 pt-4">
-						<button
-							className="flex items-center justify-center rounded-lg p-2.5 text-text-light hover:bg-background-dark"
-							aria-label="Settings"
-						>
-							<Settings size={24} />
-						</button>
-						<button
-							className="flex items-center justify-center rounded-lg p-2.5 text-text-light hover:bg-background-dark"
-							aria-label="User Profile"
-						>
-							<CircleUserRound size={24} />
-						</button>
-					</div>
-				</aside>
-				{isMobile ? (
-					<Sheet open={isLeftSidebarOpen} onOpenChange={handleSheetOpenChange}>
-						<SheetContent side="left" className="p-0">
-							<SidebarContent />
-						</SheetContent>
-					</Sheet>
-				) : (
-					isLeftSidebarOpen && (
-						<SidebarLayout sidebar={<SidebarContent />}>
-							<ChatArea />
-						</SidebarLayout>
-					)
-				)}
-				{!isLeftSidebarOpen && !isMobile && <ChatArea />}
-				{isMobile && <ChatArea />}
-				<div
-					className={`absolute inset-y-0 right-0 w-80 bg-background-light border-l border-border-light shadow-xl z-30 transition-transform duration-300 ease-in-out ${
-						isRightPanelOpen ? "translate-x-0" : "translate-x-full"
-					}`}
+		<div className="flex h-screen w-full overflow-hidden bg-background text-foreground">
+			{/* Left Activity Bar */}
+			<aside className="z-20 flex flex-col justify-between border-r border-border bg-background">
+				<ActivityBar
+					items={leftActivityItems}
+					activeId={isLeftSidebarOpen ? activeLeftPanel : null}
+					className="border-none"
+				/>
+				<div className="flex flex-col gap-2 p-2">
+					<ActivityBar
+						items={[
+							{
+								id: "settings",
+								icon: Settings,
+								label: "Settings",
+								onClick: () => toggleLeftSidebar("settings"),
+							},
+							{
+								id: "profile",
+								icon: CircleUserRound,
+								label: "Profile",
+								onClick: () => toggleLeftSidebar("profile"),
+							},
+						]}
+						className="border-none"
+						activeId={isLeftSidebarOpen ? activeLeftPanel : null}
+					/>
+				</div>
+			</aside>
+
+			{/* Left Side Panel */}
+			{isMobile ? (
+				<Sheet open={isLeftSidebarOpen} onOpenChange={handleSheetOpenChange}>
+					<SheetContent side="left" className="p-0 w-80">
+						<PanelErrorBoundary panelName="Sidebar">
+							<SidebarContent
+								conversations={conversations}
+								activeSessionId={activeSessionId}
+								setActiveSessionId={setActiveSessionId}
+								handleNewChat={handleNewChat}
+								handleRenameSession={handleRenameSession}
+								handleDeleteSession={handleDeleteSession}
+							/>
+						</PanelErrorBoundary>
+					</SheetContent>
+				</Sheet>
+			) : (
+				<SidePanel
+					isOpen={isLeftSidebarOpen}
+					title={getPanelTitle(activeLeftPanel)}
+					position="left"
 				>
-					<ContextPanel setRightPanelOpen={setRightPanelOpen} />
-				</div>
-				<div className="absolute right-4 top-1/2 -translate-y-1/2 z-40">
-					<button
-						className="flex items-center justify-center size-10 rounded-full bg-background-light text-text-main shadow-lg hover:bg-background-dark focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 border border-border-light"
-						onClick={() => setRightPanelOpen(!isRightPanelOpen)}
-						title="Toggle right sidebar"
-						aria-label="Toggle right sidebar"
-					>
-						{isRightPanelOpen ? <PanelRightClose /> : <PanelLeftClose />}
-					</button>
-				</div>
-			</div>
+					<PanelErrorBoundary panelName="Sidebar">
+						<SidebarContent
+							conversations={conversations}
+							activeSessionId={activeSessionId}
+							setActiveSessionId={setActiveSessionId}
+							handleNewChat={handleNewChat}
+							handleRenameSession={handleRenameSession}
+							handleDeleteSession={handleDeleteSession}
+						/>
+					</PanelErrorBoundary>
+				</SidePanel>
+			)}
+
+			{/* Main Chat Area */}
+			<main className="flex flex-1 flex-col overflow-hidden relative">
+				<ChatErrorBoundary onReset={handleNewChat}>
+					<ChatArea />
+				</ChatErrorBoundary>
+			</main>
+
+			{/* Right Side Panel */}
+			<SidePanel
+				isOpen={isRightPanelOpen}
+				title="Context"
+				position="right"
+			>
+				<PanelErrorBoundary panelName="Context Panel">
+					<Suspense fallback={<PanelLoader message="Loading context..." />}>
+						<ContextPanel setRightPanelOpen={setRightPanelOpen} />
+					</Suspense>
+				</PanelErrorBoundary>
+			</SidePanel>
+
+			{/* Right Activity Bar */}
+			<aside className="z-20 flex flex-col border-l border-border bg-background">
+				<ActivityBar
+					items={rightActivityItems}
+					activeId={isRightPanelOpen ? "context" : null}
+					position="right"
+					className="border-none"
+				/>
+			</aside>
 		</div>
 	);
 }
 
-const SidebarContent = () => {
-	const { activeLeftPanel } = useUIState();
-	const {
-		conversations,
-		setConversations,
-		activeSessionId,
-		setActiveSessionId,
-		handleNewChat,
-	} = useChat();
+const SidebarContent = ({
+	conversations,
+	activeSessionId,
+	setActiveSessionId,
+	handleNewChat,
+	handleRenameSession,
+	handleDeleteSession,
+}: {
+	conversations: any[];
+	activeSessionId: string | null;
+	setActiveSessionId: (id: string) => void;
+	handleNewChat: () => void;
+	handleRenameSession: (id: string, newName: string) => void;
+	handleDeleteSession: (id: string) => void;
+}) => {
+	const { activeLeftPanel } = useUIStore();
 
 	return (
-		<>
-			<div className="mb-4 flex items-center justify-between">
-				<h2 className="text-lg font-semibold text-text-main">
-					{activeLeftPanel === "sessions"
-						? "Sessions"
-						: activeLeftPanel === "memory"
-						? "Memory"
-						: "Knowledge Base"}
-				</h2>
-			</div>
-			<div className="flex-1 overflow-y-auto">
-				{activeLeftPanel === "sessions" && (
-					<SessionPanel
-						conversations={conversations}
-						activeSessionId={activeSessionId}
-						setActiveSessionId={setActiveSessionId}
-						handleNewChat={handleNewChat}
-						handleRename={(id, newName) => {
-							setConversations((prev) =>
-								prev.map((c) => (c.id === id ? { ...c, summary: newName } : c))
-							);
-						}}
-						handleDelete={(id) => {
-							setConversations((prev) => prev.filter((c) => c.id !== id));
-							if (activeSessionId === id) {
-								setActiveSessionId(null);
-							}
-						}}
-					/>
-				)}
-				{activeLeftPanel === "memory" && <MemoryPanel />}
-				{activeLeftPanel === "kb" && <KnowledgeBasePanel />}
-			</div>
-		</>
+		<div className="flex flex-col gap-4 h-full">
+			{activeLeftPanel === "sessions" && (
+				<PanelErrorBoundary panelName="Sessions">
+					<Suspense fallback={<PanelLoader message="Loading sessions..." />}>
+						<SessionPanel
+							conversations={conversations}
+							activeSessionId={activeSessionId}
+							setActiveSessionId={setActiveSessionId}
+							handleNewChat={handleNewChat}
+							handleRename={handleRenameSession}
+							handleDelete={handleDeleteSession}
+						/>
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "memory" && (
+				<PanelErrorBoundary panelName="Memory">
+					<Suspense fallback={<PanelLoader message="Loading memory..." />}>
+						<MemoryPanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "kb" && (
+				<PanelErrorBoundary panelName="Knowledge Base">
+					<Suspense
+						fallback={<PanelLoader message="Loading knowledge base..." />}
+					>
+						<KnowledgeBasePanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "projects" && (
+				<PanelErrorBoundary panelName="Projects">
+					<Suspense fallback={<PanelLoader message="Loading project..." />}>
+						<ProjectPanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "settings" && (
+				<PanelErrorBoundary panelName="Settings">
+					<Suspense fallback={<PanelLoader message="Loading settings..." />}>
+						<SettingsPanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+			{activeLeftPanel === "profile" && (
+				<PanelErrorBoundary panelName="Profile">
+					<Suspense fallback={<PanelLoader message="Loading profile..." />}>
+						<ProfilePanel />
+					</Suspense>
+				</PanelErrorBoundary>
+			)}
+		</div>
 	);
 };
 
 const ChatArea = () => {
-	const { prompt, setPrompt, handleSubmit, isPending, activeConversation } =
-		useChat();
-	const textareaRef = useRef<HTMLTextAreaElement>(null);
+	const { activeConversation, handleSubmit } = useChat();
+	const scrollRef = useRef<HTMLDivElement>(null);
+
+	// Auto-scroll to bottom when messages change
+	useEffect(() => {
+		if (scrollRef.current) {
+			scrollRef.current.scrollTo({
+				top: scrollRef.current.scrollHeight,
+				behavior: "smooth",
+			});
+		}
+	}, [activeConversation?.messages]);
 
 	return (
-		<main className="relative flex flex-1 flex-col bg-soft-cream h-full">
-			<div className="flex-1 overflow-y-auto p-6">
-				<div className="flex flex-col gap-6 mx-auto">
+		<div className="flex h-full flex-col">
+			<div
+				ref={scrollRef}
+				className="flex-1 overflow-y-auto p-4 md:p-6 scroll-smooth"
+			>
+				<div className="mx-auto max-w-3xl flex flex-col gap-6">
 					{activeConversation?.messages?.length ? (
-						<MessageList messages={activeConversation.messages} />
+						<Suspense
+							fallback={<ComponentLoader message="Loading messages..." />}
+						>
+							<MessageList messages={activeConversation.messages} />
+						</Suspense>
 					) : (
 						<WelcomeScreen onExamplePrompt={handleSubmit} />
 					)}
 				</div>
 			</div>
-			<div className="p-4">
-				<div className="mx-auto">
-					<div className="flex items-center gap-2 rounded-xl bg-background-light p-2 shadow-sm border border-border-light focus-within:border-primary focus-within:ring-1 focus-within:ring-primary">
-						<button
-							className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light"
-							aria-label="Record Message"
-						>
-							<Mic size={20} />
-						</button>
-						<Textarea
-							ref={textareaRef}
-							value={prompt}
-							onChange={(e) => setPrompt(e.target.value)}
-							placeholder="Type your message..."
-							className="form-textarea w-full resize-none border-0 bg-transparent p-2 text-text-main placeholder:text-text-light focus:ring-0"
-							rows={1}
-							onKeyDown={(e) => {
-								if (e.key === "Enter" && !e.shiftKey) {
-									e.preventDefault();
-									handleSubmit();
-								}
-							}}
-							disabled={isPending}
-						/>
-						<div className="relative group">
-							<input
-								type="file"
-								id="file-upload"
-								className="hidden"
-								aria-label="Attach File"
-							/>
-							<label
-								htmlFor="file-upload"
-								className="shrink-0 flex items-center justify-center size-9 rounded-lg hover:bg-background-dark text-text-light cursor-pointer"
-								aria-label="Attach File"
-							>
-								<Paperclip size={20} />
-							</label>
-						</div>
-						<button
-							className="shrink-0 flex items-center justify-center size-9 rounded-lg bg-muted-blue-500 text-white hover:bg-muted-blue-500/90 disabled:bg-primary/50 disabled:cursor-not-allowed"
-							onClick={() => handleSubmit()}
-							disabled={!prompt.trim()}
-							aria-label="Send Message"
-						>
-							<Send size={20} />
-						</button>
-					</div>
-				</div>
-			</div>
-		</main>
+			<ChatFooter />
+		</div>
 	);
 };

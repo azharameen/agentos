@@ -22,6 +22,9 @@
 
 **Genie Backend** - A production-grade AI agent backend built with NestJS, LangChain, LangGraph, and Azure OpenAI. Features autonomous agents, RAG (Retrieval-Augmented Generation), persistent memory, and advanced observability.
 
+> [!IMPORTANT]
+> **Master Documentation**: For comprehensive architecture, API details, and feature guides, please refer to [GENIE_MASTER_DOCUMENTATION.md](../documentation/GENIE_MASTER_DOCUMENTATION.md).
+
 ### 🚀 Key Features
 
 - 🤖 **Autonomous Agents** - ReAct-style reasoning with tool calling

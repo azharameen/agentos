@@ -1,12 +1,17 @@
 /**
- * Agent Event Stream Handler
+ * Agent Event Stream Handler (GitHub Copilot Style)
  * Processes backend event stream and updates conversation state
+ * 
+ * NEW: Builds single streaming message with inline content blocks
+ * - Text content appends to last text block
+ * - Tool calls insert as inline blocks
+ * - Tool completions update existing blocks
  * 
  * IMPORTANT: All handlers use functional state updates to avoid stale closure issues
  */
 
 import type { AgentEvent } from './agent-events';
-import type { AnyMessage, Conversation } from './types';
+import type { AnyMessage, Conversation, StreamingMessage, ContentBlock, TextBlock, ToolCallBlock } from './types';
 
 export type EventHandlerState = {
   sessionId: string;
@@ -14,7 +19,41 @@ export type EventHandlerState = {
 };
 
 /**
- * Handle RUN_STARTED event - show loading message
+ * Helper: Get or create streaming message
+ */
+function getOrCreateStreamingMessage(
+  messages: AnyMessage[],
+  sessionId: string
+): { messages: AnyMessage[]; streamingMsg: StreamingMessage } {
+  // Find last message
+  const lastMsg = messages[messages.length - 1];
+
+  // If last message is streaming, return it
+  if (lastMsg && lastMsg.role === 'assistant' && lastMsg.type === 'streaming') {
+    return {
+      messages,
+      streamingMsg: lastMsg as StreamingMessage
+    };
+  }
+
+  // Create new streaming message
+  const newStreamingMsg: StreamingMessage = {
+    id: `streaming-${sessionId}-${Date.now()}`,
+    role: 'assistant',
+    type: 'streaming',
+    contentBlocks: [],
+    isStreaming: true,
+    createdAt: new Date().toISOString()
+  };
+
+  return {
+    messages: [...messages, newStreamingMsg],
+    streamingMsg: newStreamingMsg
+  };
+}
+
+/**
+ * Handle RUN_STARTED event - create or reset streaming message
  */
 export function handleRunStartedEvent(
   event: AgentEvent,
@@ -22,24 +61,28 @@ export function handleRunStartedEvent(
 ): void {
   if (event.type !== 'RUN_STARTED') return;
 
-  const loadingMessage: AnyMessage = {
-    id: `loading-${event.data.sessionId}`,
-    role: 'assistant',
-    type: 'loading',
-    content: 'Agent is thinking...',
-  };
-
   state.setConversations((prev) =>
-    prev.map((c) =>
-      c.id === state.sessionId
-        ? { ...c, messages: [...c.messages, loadingMessage] }
-        : c
-    )
+    prev.map((c) => {
+      if (c.id !== state.sessionId) return c;
+
+      // Remove loading messages and create new streaming message
+      const filtered = c.messages.filter((m) => m.type !== 'loading');
+      const streamingMsg: StreamingMessage = {
+        id: `streaming-${state.sessionId}-${Date.now()}`,
+        role: 'assistant',
+        type: 'streaming',
+        contentBlocks: [],
+        isStreaming: true,
+        createdAt: new Date().toISOString()
+      };
+
+      return { ...c, messages: [...filtered, streamingMsg] };
+    })
   );
 }
 
 /**
- * Handle TEXT_MESSAGE_CONTENT event - update/create agent message
+ * Handle TEXT_MESSAGE_CONTENT event - append text to streaming message
  */
 export function handleTextMessageContentEvent(
   event: AgentEvent,
@@ -47,50 +90,60 @@ export function handleTextMessageContentEvent(
 ): void {
   if (event.type !== 'TEXT_MESSAGE_CONTENT') return;
 
-  const { messageId, delta } = event.data;
+  const { delta } = event.data;
 
   state.setConversations((prev) =>
     prev.map((c) => {
       if (c.id !== state.sessionId) return c;
 
-      // Remove loading message if present
-      let messages = c.messages.filter((m) => m.type !== 'loading');
+      // Get or create streaming message
+      const { messages: baseMessages, streamingMsg } = getOrCreateStreamingMessage(c.messages, state.sessionId);
 
-      // Find last agent message bubble
-      const lastAgentIdx = messages.length - 1;
-      const lastAgentMsg = messages[lastAgentIdx];
-      if (
-        lastAgentIdx >= 0 &&
-        lastAgentMsg.role === 'assistant' &&
-        lastAgentMsg.type === 'text' &&
-        lastAgentMsg.id === messageId
-      ) {
-        // Append delta to last agent message bubble ONLY if messageId matches
-        const prevContent = lastAgentMsg.content || '';
-        const newContent = prevContent + (delta || '');
-        messages = messages.map((m, idx) =>
-          idx === lastAgentIdx && m.type === 'text'
-            ? { ...m, content: newContent, isStreaming: true }
-            : m
-        );
+      // Get last content block
+      const lastBlock = streamingMsg.contentBlocks[streamingMsg.contentBlocks.length - 1];
+
+      // If last block is text, append delta to it
+      if (lastBlock && lastBlock.type === 'text') {
+        const updatedBlocks = [
+          ...streamingMsg.contentBlocks.slice(0, -1),
+          {
+            ...lastBlock,
+            content: lastBlock.content + (delta || '')
+          }
+        ];
+
+        const updatedMsg: StreamingMessage = {
+          ...streamingMsg,
+          contentBlocks: updatedBlocks
+        };
+
+        return {
+          ...c,
+          messages: baseMessages.map(m => m.id === streamingMsg.id ? updatedMsg : m)
+        };
       } else {
-        // Create new agent message bubble for new messageId
-        messages.push({
-          id: messageId,
-          role: 'assistant',
+        // Create new text block
+        const newTextBlock: TextBlock = {
           type: 'text',
-          content: delta || '',
-          isStreaming: true,
-        });
-      }
+          content: delta || ''
+        };
 
-      return { ...c, messages };
+        const updatedMsg: StreamingMessage = {
+          ...streamingMsg,
+          contentBlocks: [...streamingMsg.contentBlocks, newTextBlock]
+        };
+
+        return {
+          ...c,
+          messages: baseMessages.map(m => m.id === streamingMsg.id ? updatedMsg : m)
+        };
+      }
     })
   );
 }
 
 /**
- * Handle TOOL_CALL_START event - show tool call started
+ * Handle TOOL_CALL_START event - add tool call block inline
  */
 export function handleToolCallStartEvent(
   event: AgentEvent,
@@ -98,30 +151,40 @@ export function handleToolCallStartEvent(
 ): void {
   if (event.type !== 'TOOL_CALL_START') return;
 
-  const { toolCallId, tool } = event.data;
-
-  const toolMessage: AnyMessage = {
-    id: toolCallId,
-    role: 'assistant',
-    type: 'tool-call',
-    toolName: tool,
-    toolCallId,
-    status: 'started',
-    result: null,
-    isStreaming: true,
-  };
+  const { toolCallId, tool, input } = event.data;
 
   state.setConversations((prev) =>
-    prev.map((c) =>
-      c.id === state.sessionId
-        ? { ...c, messages: [...c.messages, toolMessage] }
-        : c
-    )
+    prev.map((c) => {
+      if (c.id !== state.sessionId) return c;
+
+      // Get or create streaming message
+      const { messages: baseMessages, streamingMsg } = getOrCreateStreamingMessage(c.messages, state.sessionId);
+
+      // Add tool call block
+      const toolBlock: ToolCallBlock = {
+        type: 'tool-call',
+        toolName: tool,
+        toolCallId,
+        status: 'started',
+        input,
+        result: null
+      };
+
+      const updatedMsg: StreamingMessage = {
+        ...streamingMsg,
+        contentBlocks: [...streamingMsg.contentBlocks, toolBlock]
+      };
+
+      return {
+        ...c,
+        messages: baseMessages.map(m => m.id === streamingMsg.id ? updatedMsg : m)
+      };
+    })
   );
 }
 
 /**
- * Handle TOOL_COMPLETE event - update tool call status
+ * Handle TOOL_COMPLETE event - update tool call block status
  */
 export function handleToolCompleteEvent(
   event: AgentEvent,
@@ -135,14 +198,25 @@ export function handleToolCompleteEvent(
     prev.map((c) => {
       if (c.id !== state.sessionId) return c;
 
+      // Find streaming message and update tool block
       const messages = c.messages.map((m) => {
-        if (m.type === 'tool-call' && m.toolCallId === toolCallId) {
+        if (m.role === 'assistant' && m.type === 'streaming') {
+          const streamingMsg = m as StreamingMessage;
+          const updatedBlocks = streamingMsg.contentBlocks.map((block) => {
+            if (block.type === 'tool-call' && block.toolCallId === toolCallId) {
+              return {
+                ...block,
+                status: 'completed' as const,
+                result: output || `Completed (${status})`,
+                duration
+              };
+            }
+            return block;
+          });
+
           return {
-            ...m,
-            status: 'ended' as const,
-            result: output || `Completed (${status})`,
-            duration,
-            isStreaming: false,
+            ...streamingMsg,
+            contentBlocks: updatedBlocks
           };
         }
         return m;
@@ -154,7 +228,7 @@ export function handleToolCompleteEvent(
 }
 
 /**
- * Handle CONTEXT event - show context message
+ * Handle CONTEXT event - add context block inline
  */
 export function handleContextEvent(
   event: AgentEvent,
@@ -164,25 +238,35 @@ export function handleContextEvent(
 
   const { context, source } = event.data;
 
-  const contextMessage: AnyMessage = {
-    id: `context-${Date.now()}`,
-    role: 'assistant',
-    type: 'context',
-    content: context,
-    source,
-  };
-
   state.setConversations((prev) =>
-    prev.map((c) =>
-      c.id === state.sessionId
-        ? { ...c, messages: [...c.messages, contextMessage] }
-        : c
-    )
+    prev.map((c) => {
+      if (c.id !== state.sessionId) return c;
+
+      // Get or create streaming message
+      const { messages: baseMessages, streamingMsg } = getOrCreateStreamingMessage(c.messages, state.sessionId);
+
+      // Add context block at the beginning
+      const contextBlock: ContentBlock = {
+        type: 'context',
+        content: context,
+        source
+      };
+
+      const updatedMsg: StreamingMessage = {
+        ...streamingMsg,
+        contentBlocks: [contextBlock, ...streamingMsg.contentBlocks]
+      };
+
+      return {
+        ...c,
+        messages: baseMessages.map(m => m.id === streamingMsg.id ? updatedMsg : m)
+      };
+    })
   );
 }
 
 /**
- * Handle RUN_FINISHED event - finalize agent message
+ * Handle RUN_FINISHED event - finalize streaming message
  */
 export function handleRunFinishedEvent(
   event: AgentEvent,
@@ -190,32 +274,22 @@ export function handleRunFinishedEvent(
 ): void {
   if (event.type !== 'RUN_FINISHED') return;
 
-  const { output } = event.data;
-
   state.setConversations((prev) =>
     prev.map((c) => {
       if (c.id !== state.sessionId) return c;
 
-      // Remove loading message if present
-      let messages = c.messages.filter((m) => m.type !== 'loading');
-
-      // Finalize all streaming messages
-      messages = messages.map((m) => {
-        if (m.role === 'assistant' && 'isStreaming' in m && m.isStreaming) {
-          if (m.type === 'text') {
+      // Remove loading message and finalize streaming messages
+      const messages = c.messages
+        .filter((m) => m.type !== 'loading')
+        .map((m) => {
+          if (m.role === 'assistant' && m.type === 'streaming') {
             return {
               ...m,
-              content: output,
-              isStreaming: false,
+              isStreaming: false
             };
           }
-          return {
-            ...m,
-            isStreaming: false,
-          };
-        }
-        return m;
-      });
+          return m;
+        });
 
       return { ...c, messages };
     })

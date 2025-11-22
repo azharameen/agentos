@@ -1,6 +1,9 @@
-# Agentica AI Chat - A Simulated Agentic Framework Interface
+# Genie Chat - AI Agent Interface
 
-This is a Next.js application that provides a sleek, responsive, and powerful chat interface to simulate interacting with **Agentica AI**, a conceptual framework for building advanced agentic applications.
+> [!IMPORTANT]
+> **Master Documentation**: For comprehensive architecture and backend details, please refer to [GENIE_MASTER_DOCUMENTATION.md](../../documentation/GENIE_MASTER_DOCUMENTATION.md).
+
+This is a Next.js application that provides a sleek, responsive, and powerful chat interface to interact with the **Genie** backend.
 
 ## Agentica AI Features (Simulated)
 

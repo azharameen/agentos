@@ -30,6 +30,7 @@ import {
 interface LeftSidebarProps {
 	conversations: Conversation[];
 	activeSessionId: string | null;
+	onNewChat: () => void;
 	onSessionSelect: (id: string) => void;
 	onConversationDelete: (id: string) => void;
 	onConversationRename: (id: string, newName: string) => void;
